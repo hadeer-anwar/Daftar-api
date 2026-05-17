@@ -1,4 +1,5 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Post, Get, UseGuards, Req } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 
 import { AuthService } from './auth.service';
 
@@ -17,5 +18,22 @@ export class AuthController {
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  googleLogin() {
+    // redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  googleCallback(@Req() req: any) {
+    // Successful authentication, generate JWT and create user in DB
+    return this.authService.googleSignIn({
+      email: req.user.email,
+      name: req.user.name,
+      googleId: req.user.googleId,
+    });
   }
 }

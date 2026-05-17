@@ -11,6 +11,7 @@ import { UsersRepository } from '../users/repositories/users.repository';
 
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuthProvider } from '../users/schemas/user.schema';
 
 @Injectable()
 export class AuthService {
@@ -52,6 +53,21 @@ export class AuthService {
     }
 
     return this.generateToken(user);
+  }
+
+  async googleSignIn(user: any) {
+    let existingUser = await this.usersRepo.findByEmail(user.email);
+
+    if (!existingUser) {
+      existingUser = await this.usersRepo.create({
+        name: user.name,
+        email: user.email,
+        googleId: user.googleId,
+        provider: AuthProvider.GOOGLE,
+      });
+    }
+
+    return this.generateToken(existingUser);
   }
 
   private generateToken(user: any) {
