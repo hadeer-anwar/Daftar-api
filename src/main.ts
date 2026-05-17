@@ -19,17 +19,16 @@ async function bootstrap() {
     .setTitle('Daftar API')
     .setDescription('Daftar API Documentation')
     .setVersion('1.0')
-    .addTag('Users')
-    .addTag('Auth')
-    .addBearerAuth({
-      type: 'http',
-      scheme: 'bearer',
-      bearerFormat: 'JWT',
-      name: 'JWT',
-      description: 'Enter JWT token',
-      in: 'header',
-    },
-    'access-token',
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        name: 'JWT',
+        description: 'Enter JWT token',
+        in: 'header',
+      },
+      'access-token',
     )
     .build();
 

@@ -13,7 +13,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
-import { UpdateIncomeDto } from './dto/update-income.dto';
+import { UpdateSalaryDto } from './dto/update-salary.dto';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
@@ -30,14 +30,14 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Patch('me/income')
-  updateIncome(
+  @Patch('me/salary')
+  updateSalary(
     @CurrentUser() user: CurrentUserData,
 
     @Body()
-    updateIncomeDto: UpdateIncomeDto,
+    updateSalaryDto: UpdateSalaryDto,
   ) {
-    return this.usersService.updateIncome(user.userId, updateIncomeDto);
+    return this.usersService.updateSalary(user.userId, updateSalaryDto);
   }
 
   @UseGuards(JwtAuthGuard)

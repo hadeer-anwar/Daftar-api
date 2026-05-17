@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { UsersRepository } from './repositories/users.repository';
 
-import { UpdateIncomeDto } from './dto/update-income.dto';
+import { UpdateSalaryDto } from './dto/update-salary.dto';
 
 @Injectable()
 export class UsersService {
@@ -18,10 +18,10 @@ export class UsersService {
     return user;
   }
 
-  async updateIncome(userId: string, updateIncomeDto: UpdateIncomeDto) {
+  async updateSalary(userId: string, updateSalaryDto: UpdateSalaryDto) {
     const updatedUser = await this.usersRepository.updateById(
       userId,
-      updateIncomeDto,
+      updateSalaryDto,
     );
 
     if (!updatedUser) {

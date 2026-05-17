@@ -1,10 +1,10 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsInt, Min, Max } from 'class-validator';
 
-export class UpdateIncomeDto {
+export class UpdateSalaryDto {
   @ApiProperty({
     example: 5000,
-    description: 'The monthly income of the user',
+    description: 'The monthly salary of the user',
   })
   @IsInt()
   @Min(0)
