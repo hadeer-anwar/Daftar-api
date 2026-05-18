@@ -9,6 +9,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -71,5 +73,18 @@ export class AuthController {
     dto: ResendResetCodeDto,
   ) {
     return this.authService.resendResetCode(dto);
+  }
+  @Post('refresh')
+  @UseGuards(JwtAuthGuard)
+  refresh(@Body() body: any, @CurrentUser() user: any) {
+    const userId = user._id.toString();
+    const refreshToken = body.refreshToken;
+    return this.authService.refresh(userId, refreshToken);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  logout(@CurrentUser() user: any) {
+    return this.authService.logout(user._id.toString());
   }
 }

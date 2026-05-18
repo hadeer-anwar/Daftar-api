@@ -92,6 +92,17 @@ export class User {
 
   @Prop()
   resetPasswordLastSentAt?: Date;
+
+  @Prop({
+    type: String,
+    default: null,
+  })
+  hashedRefreshToken?: string | null;
+
+  @Prop({
+    default: 0,
+  })
+  tokenVersion!: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
