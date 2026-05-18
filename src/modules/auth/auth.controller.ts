@@ -5,6 +5,10 @@ import { AuthService } from './auth.service';
 
 import { SignupDto } from './dto/signup.dto';
 import { LoginDto } from './dto/login.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { VerifyResetCodeDto } from './dto/verify-reset-code.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,5 +39,37 @@ export class AuthController {
       name: req.user.name,
       googleId: req.user.googleId,
     });
+  }
+
+  @Post('forgot-password')
+  forgotPassword(
+    @Body()
+    dto: ForgotPasswordDto,
+  ) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Post('verify-reset-code')
+  verifyResetCode(
+    @Body()
+    dto: VerifyResetCodeDto,
+  ) {
+    return this.authService.verifyResetCode(dto);
+  }
+
+  @Post('reset-password')
+  resetPassword(
+    @Body()
+    dto: ResetPasswordDto,
+  ) {
+    return this.authService.resetPassword(dto);
+  }
+
+  @Post('resend-reset-code')
+  resendResetCode(
+    @Body()
+    dto: ResendResetCodeDto,
+  ) {
+    return this.authService.resendResetCode(dto);
   }
 }

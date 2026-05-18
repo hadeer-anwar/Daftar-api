@@ -75,8 +75,23 @@ export class User {
 
   @Prop()
   lastLoginAt?: Date;
+
+  @Prop()
+  passwordResetToken?: string;
+
+  @Prop()
+  passwordResetExpires?: Date;
+
+  @Prop({
+    default: 0,
+  })
+  resetPasswordAttempts!: number;
+
+  @Prop()
+  resetPasswordBlockedUntil?: Date;
+
+  @Prop()
+  resetPasswordLastSentAt?: Date;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
-
-UserSchema.index({ email: 1 });
