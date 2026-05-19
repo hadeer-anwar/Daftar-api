@@ -1,38 +1,78 @@
-import { Injectable } from '@nestjs/common';
-
-import { Resend } from 'resend';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 @Injectable()
 export class MailService {
-  private resend = new Resend(process.env.RESEND_API_KEY);
+  private readonly apiKey = process.env.BREVO_API_KEY;
 
-  async sendResetCode(to: string, code: string) {
+  private readonly senderEmail = 'n16102502@gmail.com';
+
+  private readonly senderName = 'Daftar';
+
+  async sendResetCode(toEmail: string, otp: string) {
+    if (!this.apiKey) {
+      throw new Error('BREVO_API_KEY is not defined');
+    }
+
     try {
-      const response = await this.resend.emails.send({
-        from: 'Daftar <onboarding@resend.dev>',
+      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'api-key': this.apiKey,
+        },
+        body: JSON.stringify({
+          sender: {
+            email: this.senderEmail,
+            name: this.senderName,
+          },
 
-        to,
+          to: [
+            {
+              email: toEmail,
+            },
+          ],
 
-        subject: 'Reset Password',
+          subject: 'Password Reset Code',
 
-        html: `
-            <h2>Daftar Password Reset</h2>
+          htmlContent: `
+              <div style="font-family: Arial, sans-serif; padding: 20px;">
+                <h2>Password Reset</h2>
 
-            <p>Your verification code:</p>
+                <p>Your OTP code is:</p>
 
-            <h1>${code}</h1>
+                <div
+                  style="
+                    font-size: 32px;
+                    font-weight: bold;
+                    letter-spacing: 5px;
+                    margin: 20px 0;
+                  "
+                >
+                  ${otp}
+                </div>
 
-            <p>
-              This code expires in 10 minutes.
-            </p>
-          `,
+                <p>This code will expire in 10 minutes.</p>
+
+                <p>If you did not request this, please ignore this email.</p>
+              </div>
+            `,
+        }),
       });
 
-      return response;
-    } catch (error) {
-      console.error(error);
+      if (!response.ok) {
+        const errorText = await response.text();
 
-      throw error;
+        console.error('Brevo Error:', errorText);
+
+        throw new InternalServerErrorException('Failed to send email');
+      }
+
+      return (await response.json()) as unknown;
+    } catch (error) {
+      console.error('Mail Service Error:', error);
+
+      throw new InternalServerErrorException('Failed to send email');
     }
   }
 }
