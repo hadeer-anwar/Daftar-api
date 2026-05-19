@@ -77,7 +77,7 @@ export class AuthController {
   @Post('refresh')
   @UseGuards(JwtAuthGuard)
   refresh(@Body() body: any, @CurrentUser() user: any) {
-    const userId = user._id.toString();
+    const userId = user.userId;
     const refreshToken = body.refreshToken;
     return this.authService.refresh(userId, refreshToken);
   }
@@ -85,6 +85,6 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   logout(@CurrentUser() user: any) {
-    return this.authService.logout(user._id.toString());
+    return this.authService.logout(user.userId);
   }
 }

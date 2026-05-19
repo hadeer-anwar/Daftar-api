@@ -18,7 +18,7 @@ import type { CurrentUserData } from '../../common/interfaces/current-user.inter
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 
 @ApiTags('users')
-@ApiBearerAuth('access-token')
+@ApiBearerAuth('accessToken')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}

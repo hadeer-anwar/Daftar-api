@@ -48,20 +48,7 @@ export class AuthService {
       ...dto,
       password: hashedPassword,
     });
-
-    const payload = {
-      sub: user._id.toString(),
-      email: user.email,
-      tokenVersion: user.tokenVersion,
-    };
-
-    const accessToken = this.jwtService.sign(payload, {
-      expiresIn: '15m',
-    });
-
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
+    const { accessToken, refreshToken } = this.generateTokens(user);
 
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
@@ -88,24 +75,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload = {
-      sub: user._id.toString(),
-      email: user.email,
-      tokenVersion: user.tokenVersion,
-    };
-
-    const accessToken = this.jwtService.sign(
-      {
-        sub: user._id.toString(),
-        email: user.email,
-      },
-      { expiresIn: '15m' },
-    );
-
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
-
+    const { accessToken, refreshToken } = this.generateTokens(user);
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
     await this.usersRepo.updateById(user._id.toString(), {
@@ -131,23 +101,7 @@ export class AuthService {
       });
     }
 
-    const payload = {
-      sub: existingUser._id.toString(),
-      email: existingUser.email,
-      tokenVersion: existingUser.tokenVersion,
-    };
-
-    const accessToken = this.jwtService.sign(
-      {
-        sub: existingUser._id.toString(),
-        email: existingUser.email,
-      },
-      { expiresIn: '15m' },
-    );
-
-    const refreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
+    const { accessToken, refreshToken } = this.generateTokens(existingUser);
 
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
 
@@ -330,24 +284,8 @@ export class AuthService {
     if (!isValid) {
       throw new UnauthorizedException();
     }
-
-    const payload = {
-      sub: user._id.toString(),
-      email: user.email,
-      tokenVersion: user.tokenVersion,
-    };
-
-    const newAccessToken = this.jwtService.sign(
-      {
-        sub: user._id.toString(),
-        email: user.email,
-      },
-      { expiresIn: '15m' },
-    );
-
-    const newRefreshToken = this.jwtService.sign(payload, {
-      expiresIn: '7d',
-    });
+    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
+      this.generateTokens(user);
 
     const hashed = await bcrypt.hash(newRefreshToken, 10);
 
@@ -375,5 +313,23 @@ export class AuthService {
       hashedRefreshToken: null,
       tokenVersion: user.tokenVersion + 1,
     });
+  }
+
+  private generateTokens(user) {
+    const payload = {
+      sub: user._id.toString(),
+      email: user.email,
+      tokenVersion: user.tokenVersion,
+    };
+
+    const accessToken = this.jwtService.sign(payload, {
+      expiresIn: '15m',
+    });
+
+    const refreshToken = this.jwtService.sign(payload, {
+      expiresIn: '7d',
+    });
+
+    return { accessToken, refreshToken };
   }
 }
