@@ -6,6 +6,7 @@ import {
   Get,
   Param,
   Delete,
+  Patch,
 } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -44,7 +45,7 @@ export class CategoriesController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post(':id')
+  @Patch(':id')
   updateCategory(
     @Param('id') id: string,
     @Body() updateCategoryDto: CreateCategoryDto,
