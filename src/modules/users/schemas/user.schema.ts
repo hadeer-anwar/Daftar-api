@@ -51,12 +51,8 @@ export class User {
   })
   monthlyIncome!: number;
 
-  @Prop({
-    default: 1,
-    min: 1,
-    max: 31,
-  })
-  resetDay!: number;
+  @Prop()
+  payDate!: Date;
 
   @Prop({
     default: 'EGP',
@@ -103,6 +99,12 @@ export class User {
     default: 0,
   })
   tokenVersion!: number;
+
+  @Prop()
+  incomeBalance!: number;
+
+  @Prop()
+  expenseBalance!: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

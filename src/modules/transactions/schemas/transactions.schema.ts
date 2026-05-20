@@ -24,7 +24,7 @@ export class Transaction {
   categoryId?: string;
 
   @Prop({ required: true })
-  date!: string;
+  date!: Date;
 
   @Prop()
   notes?: string;
@@ -34,9 +34,6 @@ export class Transaction {
 
   @Prop()
   incomeType?: 'part-time' | 'freelance' | 'bonus' | 'other';
-
-  @Prop()
-  payDate?: string;
 
   @Prop()
   repeat?: 'monthly' | 'one-time';

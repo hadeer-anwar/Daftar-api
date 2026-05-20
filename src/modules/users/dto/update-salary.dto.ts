@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsInt, Min, Max } from 'class-validator';
+import { IsInt, Min } from 'class-validator';
 
 export class UpdateSalaryDto {
   @ApiProperty({
@@ -11,11 +11,8 @@ export class UpdateSalaryDto {
   monthlyIncome!: number;
 
   @ApiProperty({
-    example: 1,
-    description: 'The day of the month to reset the income',
+    example: new Date(),
+    description: 'The date of the month to pay the user salary',
   })
-  @IsInt()
-  @Min(1)
-  @Max(31)
-  resetDay!: number;
+  payDate!: Date;
 }
