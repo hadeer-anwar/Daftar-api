@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsDateString, IsString } from 'class-validator';
-import { TransactionType } from '../schemas/transactions.schema';
+import { IncomeType, TransactionType } from '../schemas/transactions.schema';
 
 /**
  * Date range presets matching the UI filter sheet:
@@ -21,6 +21,13 @@ export class FilterTransactionDto {
   @IsOptional()
   @IsEnum(TransactionType)
   transactionType?: TransactionType;
+  @ApiPropertyOptional({
+    enum: IncomeType,
+    description: 'Filter by income type (salary, freelance, etc.)',
+  })
+  @IsOptional()
+  @IsEnum(IncomeType)
+  incomeType?: IncomeType;
 
   @ApiPropertyOptional({
     enum: DateRangePreset,

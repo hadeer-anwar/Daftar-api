@@ -1,0 +1,135 @@
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Types } from 'mongoose';
+
+import { TransactionRepository } from '../transactions/repositories/transactions.repository';
+import { Transaction } from '../transactions/schemas/transactions.schema';
+
+import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
+import { RecurringTransactionsRepository } from './repositories/recurring-transactions.repository';
+import {
+  RecurringTransaction,
+  RecurringTransactionDocument,
+} from './schemas/recurring-transaction.schema';
+import { calculateNextRunDate } from './utils/calculate-next-run-date.util';
+
+@Injectable()
+export class RecurringTransactionsService {
+  private readonly logger = new Logger(RecurringTransactionsService.name);
+
+  constructor(
+    private readonly recurringRepository: RecurringTransactionsRepository,
+    private readonly transactionRepository: TransactionRepository,
+  ) {}
+
+  async create(userId: string, dto: CreateRecurringTransactionDto) {
+    const startDate = new Date(dto.startDate);
+    const userObjectId = new Types.ObjectId(userId);
+
+    const rule = await this.recurringRepository.create({
+      userId: userObjectId,
+      amount: dto.amount,
+      type: dto.type,
+      frequency: dto.frequency,
+      startDate,
+      nextRunDate: calculateNextRunDate(startDate, dto.frequency),
+      lastGeneratedAt: startDate,
+      isActive: true,
+      notes: dto.notes,
+    });
+
+    return rule;
+  }
+
+  /**
+   * Find every active recurring rule whose nextRunDate is in the past
+   * and generate the missing transactions up to "now". The loop catches up
+   * any number of missed cycles in a single pass.
+   */
+  async generateDueTransactions(userId: string): Promise<Transaction[]> {
+    const now = new Date();
+    const dueRules = await this.recurringRepository.findDueTransactions(
+      userId,
+      now,
+    );
+
+    const generated: Transaction[] = [];
+
+    for (const rule of dueRules) {
+      const created = await this.generateForRule(rule, now);
+      generated.push(...created);
+    }
+
+    return generated;
+  }
+
+  private async generateForRule(
+    rule: RecurringTransactionDocument,
+    now: Date,
+  ): Promise<Transaction[]> {
+    const created: Transaction[] = [];
+
+    while (rule.nextRunDate && rule.nextRunDate <= now) {
+      const runDate = new Date(rule.nextRunDate);
+      // todo check if it isApplied false update transaction to be true
+      const alreadyExists =
+        await this.transactionRepository.existsRecurringTransaction(
+          rule._id,
+          runDate,
+        );
+
+      if (!alreadyExists) {
+        try {
+          const transaction = await this.transactionRepository.create({
+            userId: rule.userId,
+            amount: rule.amount,
+            transactionType: rule.type,
+            categoryId: rule.categoryId,
+            date: runDate,
+            recurringId: rule._id,
+            notes: rule.notes,
+            isApplied: runDate <= new Date(),
+          });
+          created.push(transaction);
+        } catch (err: unknown) {
+          // Unique index on { recurringId, date } can race; treat as duplicate.
+          if (this.isDuplicateKeyError(err)) {
+            this.logger.warn(
+              `Duplicate recurring transaction skipped for rule ${rule.id} at ${runDate.toISOString()}`,
+            );
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      rule.lastGeneratedAt = runDate;
+      rule.nextRunDate = calculateNextRunDate(runDate, rule.frequency);
+    }
+
+    await this.recurringRepository.save(rule);
+    return created;
+  }
+
+  async findById(userId: string, id: string) {
+    const rule = await this.recurringRepository.findById(id);
+    if (!rule || rule.userId.toString() !== userId) {
+      throw new NotFoundException('Recurring transaction not found');
+    }
+    return rule;
+  }
+
+  async deactivate(id: string) {
+    return this.recurringRepository.update(id, { isActive: false });
+  }
+
+  private isDuplicateKeyError(err: unknown): boolean {
+    return (
+      typeof err === 'object' &&
+      err !== null &&
+      'code' in err &&
+      (err as { code?: number }).code === 11000
+    );
+  }
+}
+
+export type { RecurringTransaction };

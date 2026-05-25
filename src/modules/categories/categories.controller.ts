@@ -14,6 +14,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 
 @ApiTags('categories')
 @ApiBearerAuth('accessToken')
@@ -48,7 +49,7 @@ export class CategoriesController {
   @Patch(':id')
   updateCategory(
     @Param('id') id: string,
-    @Body() updateCategoryDto: CreateCategoryDto,
+    @Body() updateCategoryDto: UpdateCategoryDto,
   ) {
     return this.categoriesService.updateCategory(id, updateCategoryDto);
   }

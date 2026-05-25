@@ -43,10 +43,12 @@ export class UpdateTransactionDto {
   @IsString()
   categoryId?: string;
 
-  @ApiPropertyOptional({ enum: ['part-time', 'freelance', 'bonus', 'other'] })
+  @ApiPropertyOptional({
+    enum: ['salary', 'part-time', 'freelance', 'bonus', 'other'],
+  })
   @IsOptional()
-  @IsEnum(['part-time', 'freelance', 'bonus', 'other'])
-  incomeType?: 'part-time' | 'freelance' | 'bonus' | 'other';
+  @IsEnum(['salary', 'part-time', 'freelance', 'bonus', 'other'])
+  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
 
   @ApiPropertyOptional({ enum: ['monthly', 'one-time'] })
   @IsOptional()

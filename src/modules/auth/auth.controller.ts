@@ -11,6 +11,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -75,11 +76,9 @@ export class AuthController {
     return this.authService.resendResetCode(dto);
   }
   @Post('refresh')
-  @UseGuards(JwtAuthGuard)
-  refresh(@Body() body: any, @CurrentUser() user: any) {
-    const userId = user.userId;
+  refresh(@Body() body: RefreshTokenDto) {
     const refreshToken = body.refreshToken;
-    return this.authService.refresh(userId, refreshToken);
+    return this.authService.refresh(refreshToken);
   }
 
   @Post('logout')

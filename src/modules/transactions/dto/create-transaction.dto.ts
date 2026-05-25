@@ -57,16 +57,17 @@ export class CreateTransactionDto {
   // ─── Income-only fields ─────────────────────────────────────────────────────
 
   @ApiProperty({
-    enum: ['part-time', 'freelance', 'bonus', 'other'],
+    enum: ['salary', 'part-time', 'freelance', 'bonus', 'other'],
     example: 'freelance',
     description: 'Required for income transactions',
   })
   @ValidateIf((o) => o.transactionType === TransactionType.INCOME)
   @IsNotEmpty({ message: 'incomeType is required for income transactions' })
-  @IsEnum(['part-time', 'freelance', 'bonus', 'other'], {
-    message: 'incomeType must be one of: part-time, freelance, bonus, other',
+  @IsEnum(['salary', 'part-time', 'freelance', 'bonus', 'other'], {
+    message:
+      'incomeType must be one of: salary, part-time, freelance, bonus, other',
   })
-  incomeType?: 'part-time' | 'freelance' | 'bonus' | 'other';
+  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
 
   @ApiProperty({
     example: '2026-06-01',

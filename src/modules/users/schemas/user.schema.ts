@@ -46,15 +46,6 @@ export class User {
   avatar?: string;
 
   @Prop({
-    default: 0,
-    min: 0,
-  })
-  monthlyIncome!: number;
-
-  @Prop()
-  payDate!: Date;
-
-  @Prop({
     default: 'EGP',
   })
   currency!: string;
@@ -99,12 +90,6 @@ export class User {
     default: 0,
   })
   tokenVersion!: number;
-
-  @Prop()
-  incomeBalance!: number;
-
-  @Prop()
-  expenseBalance!: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

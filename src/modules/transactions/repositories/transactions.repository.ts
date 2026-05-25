@@ -1,11 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Transaction, TransactionType } from '../schemas/transactions.schema';
+import {
+  IncomeType,
+  Transaction,
+  TransactionType,
+} from '../schemas/transactions.schema';
 import { Model, Types } from 'mongoose';
 import { DateRangePreset } from '../dto/filter-transaction.dto';
 
 export interface TransactionFilterOptions {
   transactionType?: TransactionType;
+  incomeType?: IncomeType;
   preset?: DateRangePreset;
   startDate?: string;
   endDate?: string;
@@ -27,14 +32,46 @@ export class TransactionRepository {
     return this.transactionModel.findById(transactionId);
   }
 
+  async findByIdAndUser(transactionId: string, userId: string) {
+    return this.transactionModel.findOne({
+      _id: transactionId,
+      userId: new Types.ObjectId(userId),
+    });
+  }
+
   async findByUserId(userId: string) {
     return this.transactionModel
       .find({ userId: new Types.ObjectId(userId) })
       .sort({ date: -1 });
   }
 
+  async findAllByUser(userId: string) {
+    return this.findByUserId(userId);
+  }
+
+  async existsRecurringTransaction(
+    recurringId: string | Types.ObjectId,
+    date: Date,
+  ): Promise<boolean> {
+    const exists = await this.transactionModel.exists({
+      recurringId:
+        typeof recurringId === 'string'
+          ? new Types.ObjectId(recurringId)
+          : recurringId,
+      date,
+    });
+    return Boolean(exists);
+  }
+
   async findWithFilters(userId: string, options: TransactionFilterOptions) {
-    const { transactionType, preset, startDate, endDate, categoryId } = options;
+    const {
+      transactionType,
+      incomeType,
+      preset,
+      startDate,
+      endDate,
+      categoryId,
+    } = options;
 
     const { start, end } = this.resolveDateRange(preset, startDate, endDate);
 
@@ -49,6 +86,10 @@ export class TransactionRepository {
 
     if (categoryId) {
       query.categoryId = categoryId;
+    }
+
+    if (transactionType === TransactionType.INCOME && incomeType) {
+      query.incomeType = incomeType;
     }
 
     return this.transactionModel.find(query).sort({ date: -1 });

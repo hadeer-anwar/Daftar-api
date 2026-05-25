@@ -10,14 +10,26 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiTags,
+  ApiExtraModels,
+  ApiBody,
+  getSchemaPath,
+} from '@nestjs/swagger';
 
 import { TransactionService } from './transactions.service';
-import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import { FilterTransactionDto } from './dto/filter-transaction.dto';
+import {
+  DateRangePreset,
+  FilterTransactionDto,
+} from './dto/filter-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
+import { CreateIncomeTransactionDto } from './dto/create-income.dto';
+import { CreateExpenseTransactionDto } from './dto/create-expense.dto';
+import { TransactionType, IncomeType } from './schemas/transactions.schema';
 
 @ApiTags('Transactions')
 @ApiBearerAuth('accessToken')
@@ -28,9 +40,48 @@ export class TransactionController {
 
   @Post()
   @ApiOperation({ summary: 'Create a new income or expense transaction' })
+  @ApiExtraModels(CreateExpenseTransactionDto, CreateIncomeTransactionDto)
+  @ApiBody({
+    schema: {
+      oneOf: [
+        {
+          $ref: getSchemaPath(CreateExpenseTransactionDto),
+        },
+        {
+          $ref: getSchemaPath(CreateIncomeTransactionDto),
+        },
+      ],
+      discriminator: {
+        propertyName: 'transactionType',
+      },
+    },
+    examples: {
+      expense: {
+        summary: 'Expense Transaction',
+        value: {
+          amount: 500,
+          transactionType: 'expense',
+          categoryId: '64abc123',
+          date: '2026-05-24',
+          notes: 'Pizza dinner',
+        },
+      },
+      income: {
+        summary: 'Income Transaction',
+        value: {
+          amount: 10000,
+          transactionType: 'income',
+          incomeType: 'salary',
+          payDate: '2026-06-01',
+          repeat: 'monthly',
+          notes: 'Monthly salary',
+        },
+      },
+    },
+  })
   async create(
     @CurrentUser() user: CurrentUserData,
-    @Body() dto: CreateTransactionDto,
+    @Body() dto: CreateExpenseTransactionDto | CreateIncomeTransactionDto,
   ) {
     return this.transactionService.create(user.userId, dto);
   }
@@ -39,6 +90,20 @@ export class TransactionController {
   @ApiOperation({ summary: 'Get all transactions for the current user' })
   async findAll(@CurrentUser() user: CurrentUserData) {
     return this.transactionService.findAllByUser(user.userId);
+  }
+
+  @Get('salary')
+  @ApiOperation({
+    summary: 'Get all salary income transactions for the current user',
+  })
+  async getUserSalary(@CurrentUser() user: CurrentUserData) {
+    const filterDto: FilterTransactionDto = {
+      transactionType: TransactionType.INCOME,
+      incomeType: IncomeType.SALARY,
+      preset: DateRangePreset.THIS_MONTH,
+    };
+    console.log('Filtering salary transactions with:', filterDto);
+    return this.transactionService.findWithFilters(user.userId, filterDto);
   }
 
   @Get('filter')
@@ -57,6 +122,7 @@ export class TransactionController {
     @CurrentUser() user: CurrentUserData,
     @Query() filterDto: FilterTransactionDto,
   ) {
+    console.log('Filtering transactions with:', filterDto);
     return this.transactionService.findWithFilters(user.userId, filterDto);
   }
 

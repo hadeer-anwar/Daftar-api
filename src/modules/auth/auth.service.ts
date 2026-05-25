@@ -272,8 +272,12 @@ export class AuthService {
   // =========================
   // REFRESH TOKEN
   // =========================
-  async refresh(userId: string, refreshToken: string) {
-    const user = await this.usersRepo.findById(userId);
+  async refresh(refreshToken: string) {
+    const payload = await this.jwtService.verifyAsync(refreshToken, {
+      secret: process.env.JWT_SECRET,
+    });
+
+    const user = await this.usersRepo.findById(payload.sub);
 
     if (!user || !user.hashedRefreshToken) {
       throw new UnauthorizedException();
@@ -284,19 +288,16 @@ export class AuthService {
     if (!isValid) {
       throw new UnauthorizedException();
     }
-    const { accessToken: newAccessToken, refreshToken: newRefreshToken } =
-      this.generateTokens(user);
 
-    const hashed = await bcrypt.hash(newRefreshToken, 10);
+    const tokens = this.generateTokens(user);
+
+    const hashed = await bcrypt.hash(tokens.refreshToken, 10);
 
     await this.usersRepo.updateById(user._id.toString(), {
       hashedRefreshToken: hashed,
     });
 
-    return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
-    };
+    return tokens;
   }
 
   // =========================

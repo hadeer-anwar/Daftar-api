@@ -6,6 +6,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MailModule } from './modules/mail/mail.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     MailModule,
     CategoriesModule,
     TransactionsModule,
+    RecurringTransactionsModule,
   ],
   controllers: [],
   providers: [],

@@ -8,11 +8,16 @@ export enum TransactionType {
   INCOME = 'income',
 }
 
+export enum IncomeType {
+  SALARY = 'salary',
+  PART_TIME = 'part-time',
+  FREELANCE = 'freelance',
+  BONUS = 'bonus',
+  OTHER = 'other',
+}
+
 @Schema({ timestamps: true })
 export class Transaction {
-  @Prop({ required: true })
-  amount!: number;
-
   @Prop({
     type: Types.ObjectId,
     ref: 'User',
@@ -20,23 +25,59 @@ export class Transaction {
   })
   userId?: Types.ObjectId;
 
+  @Prop({ required: true })
+  amount!: number;
+
+  @Prop({ required: true, enum: TransactionType })
+  transactionType!: TransactionType;
+
   @Prop()
   categoryId?: string;
 
   @Prop({ required: true })
   date!: Date;
 
+  @Prop({
+    type: Types.ObjectId,
+    ref: 'RecurringTransaction',
+    default: null,
+  })
+  recurringId?: Types.ObjectId | null;
+
+  @Prop()
+  isApplied?: boolean;
+
   @Prop()
   notes?: string;
 
-  @Prop({ required: true, enum: TransactionType })
-  transactionType!: TransactionType;
-
   @Prop()
-  incomeType?: 'part-time' | 'freelance' | 'bonus' | 'other';
+  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
 
   @Prop()
   repeat?: 'monthly' | 'one-time';
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);
+
+TransactionSchema.index(
+  { recurringId: 1, date: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { recurringId: { $type: 'objectId' } },
+  },
+);
+
+TransactionSchema.index(
+  {
+    userId: 1,
+    transactionType: 1,
+    incomeType: 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: {
+      transactionType: TransactionType.INCOME,
+      incomeType: 'salary',
+    },
+  },
+);
