@@ -2,7 +2,10 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
-import { Transaction } from '../transactions/schemas/transactions.schema';
+import {
+  Transaction,
+  TransactionType,
+} from '../transactions/schemas/transactions.schema';
 
 import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
 import { RecurringTransactionsRepository } from './repositories/recurring-transactions.repository';
@@ -11,6 +14,7 @@ import {
   RecurringTransactionDocument,
 } from './schemas/recurring-transaction.schema';
 import { calculateNextRunDate } from './utils/calculate-next-run-date.util';
+import { UsersRepository } from '../users/repositories/users.repository';
 
 @Injectable()
 export class RecurringTransactionsService {
@@ -19,6 +23,7 @@ export class RecurringTransactionsService {
   constructor(
     private readonly recurringRepository: RecurringTransactionsRepository,
     private readonly transactionRepository: TransactionRepository,
+    private readonly usersRepository: UsersRepository,
   ) {}
 
   async create(userId: string, dto: CreateRecurringTransactionDto) {
@@ -87,8 +92,21 @@ export class RecurringTransactionsService {
             date: runDate,
             recurringId: rule._id,
             notes: rule.notes,
-            isApplied: runDate <= new Date(),
           });
+          // update user balance
+          if (transaction.transactionType === TransactionType.INCOME) {
+            await this.usersRepository.updateBalances(
+              rule.userId.toString(),
+              transaction.amount,
+              0,
+            );
+          } else {
+            await this.usersRepository.updateBalances(
+              rule.userId.toString(),
+              0,
+              transaction.amount,
+            );
+          }
           created.push(transaction);
         } catch (err: unknown) {
           // Unique index on { recurringId, date } can race; treat as duplicate.

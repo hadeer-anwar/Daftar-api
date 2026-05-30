@@ -10,6 +10,7 @@ import {
   RecurringTransaction,
   RecurringTransactionSchema,
 } from './schemas/recurring-transaction.schema';
+import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import {
       },
     ]),
     forwardRef(() => TransactionsModule),
+    forwardRef(() => UsersModule),
   ],
   controllers: [RecurringTransactionsController],
   providers: [RecurringTransactionsService, RecurringTransactionsRepository],

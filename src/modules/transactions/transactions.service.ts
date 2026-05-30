@@ -45,30 +45,34 @@ export class TransactionService {
         notes: dto.notes,
       });
       recurringId = recurring._id;
-    }
-    let isApplied = false;
-    if (effectiveDate <= new Date()) {
-      isApplied = true;
+
+      // Check if we also need to generate a transaction immediately
+      const now = new Date();
+      if (normalizeToDay(effectiveDate) <= normalizeToDay(now)) {
+        await this.recurringService.generateDueTransactions(userId);
+      }
     }
     const transaction = await this.transactionRepository.create({
       ...dto,
       userId: new Types.ObjectId(userId),
       date: effectiveDate,
-      isApplied,
       recurringId: recurringId || null,
     });
+
+    if (transaction.transactionType === TransactionType.INCOME) {
+      await this.usersRepository.updateBalances(userId, transaction.amount, 0);
+    } else {
+      await this.usersRepository.updateBalances(userId, 0, transaction.amount);
+    }
 
     return transaction;
   }
 
   async findAllByUser(userId: string) {
-    // await this.recurringService.generateDueTransactions(userId);
     return this.transactionRepository.findAllByUser(userId);
   }
 
   async findWithFilters(userId: string, filterDto: FilterTransactionDto) {
-    // await this.recurringService.generateDueTransactions(userId);
-    console.log('service-----------------:', filterDto);
     return this.transactionRepository.findWithFilters(userId, filterDto);
   }
 
@@ -210,5 +214,19 @@ export class TransactionService {
     await this.transactionRepository.deleteById(transactionId);
 
     return { message: 'Transaction deleted successfully' };
+  }
+
+  async getBalanceSummary(userId: string) {
+    const user = await this.usersRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return {
+      totalIncome: user.totalIncome,
+      totalExpense: user.totalExpense,
+      totalBalance: user.totalIncome - user.totalExpense,
+    };
   }
 }

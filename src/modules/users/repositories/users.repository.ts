@@ -38,4 +38,20 @@ export class UsersRepository {
   async deleteById(userId: string) {
     return this.userModel.findByIdAndDelete(userId);
   }
+
+  async updateBalances(
+    userId: string,
+    incomeDelta = 0,
+    expenseDelta = 0,
+  ): Promise<void> {
+    await this.userModel.updateOne(
+      { _id: userId },
+      {
+        $inc: {
+          totalIncome: incomeDelta,
+          totalExpense: expenseDelta,
+        },
+      },
+    );
+  }
 }

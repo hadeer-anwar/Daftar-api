@@ -30,13 +30,17 @@ import type { CurrentUserData } from '../../common/interfaces/current-user.inter
 import { CreateIncomeTransactionDto } from './dto/create-income.dto';
 import { CreateExpenseTransactionDto } from './dto/create-expense.dto';
 import { TransactionType, IncomeType } from './schemas/transactions.schema';
+import { RecurringTransactionsService } from '../recurring-transactions/recurring-transactions.service';
 
 @ApiTags('Transactions')
 @ApiBearerAuth('accessToken')
 @UseGuards(AuthGuard('jwt'))
 @Controller('transactions')
 export class TransactionController {
-  constructor(private readonly transactionService: TransactionService) {}
+  constructor(
+    private readonly transactionService: TransactionService,
+    private readonly recurringService: RecurringTransactionsService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new income or expense transaction' })
@@ -124,6 +128,13 @@ export class TransactionController {
   ) {
     console.log('Filtering transactions with:', filterDto);
     return this.transactionService.findWithFilters(user.userId, filterDto);
+  }
+
+  @Get('balances/summary')
+  @ApiOperation({ summary: 'Get a summary of transaction balances' })
+  async getBalanceSummary(@CurrentUser() user: CurrentUserData) {
+    await this.recurringService.generateDueTransactions(user.userId);
+    return this.transactionService.getBalanceSummary(user.userId);
   }
 
   @Patch(':transactionId')

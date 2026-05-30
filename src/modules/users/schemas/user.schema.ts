@@ -90,6 +90,16 @@ export class User {
     default: 0,
   })
   tokenVersion!: number;
+
+  @Prop({
+    default: 0,
+  })
+  totalIncome!: number;
+
+  @Prop({
+    default: 0,
+  })
+  totalExpense!: number;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
