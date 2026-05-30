@@ -1,4 +1,12 @@
-import { Body, Controller, Post, Get, UseGuards, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Get,
+  UseGuards,
+  Req,
+  Patch,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 import { AuthService } from './auth.service';
@@ -12,7 +20,10 @@ import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
-
+import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+@ApiTags('auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
@@ -75,15 +86,28 @@ export class AuthController {
   ) {
     return this.authService.resendResetCode(dto);
   }
+
   @Post('refresh')
   refresh(@Body() body: RefreshTokenDto) {
     const refreshToken = body.refreshToken;
     return this.authService.refresh(refreshToken);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('accessToken')
+  @Patch('change-password')
+  changePassword(
+    @CurrentUser() user: CurrentUserData,
+    @Body() dto: ChangePasswordDto,
+  ) {
+    // console.log('User ID from token:', user.userId);
+    // console.log('ChangePasswordDto:', dto);
+    return this.authService.changePassword(user.userId, dto);
+  }
+
   @Post('logout')
   @UseGuards(JwtAuthGuard)
-  logout(@CurrentUser() user: any) {
+  logout(@CurrentUser() user: CurrentUserData) {
     return this.authService.logout(user.userId);
   }
 }

@@ -17,7 +17,7 @@ export class UsersRepository {
   }
 
   async findById(userId: string) {
-    return this.userModel.findById(userId);
+    return this.userModel.findById(userId).select('+password');
   }
 
   async findByEmail(email: string) {

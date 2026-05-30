@@ -23,6 +23,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
 
 import { generateOtp } from '../../common/utils/generate-otp';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -298,6 +299,39 @@ export class AuthService {
     });
 
     return tokens;
+  }
+
+  // =========================
+  // CHANGE PASSWORD
+  // =========================
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.usersRepo.findById(userId);
+    // console.log('user from service:', user);
+    if (!user || !user.password) {
+      throw new UnauthorizedException();
+    }
+    // console.log('User found for password change:', user.email);
+
+    const isMatch = await bcrypt.compare(dto.currentPassword, user.password);
+
+    if (!isMatch) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.newPassword, 10);
+
+    await this.usersRepo.updateById(userId, {
+      password: hashedPassword,
+
+      hashedRefreshToken: null,
+
+      // 🔥 SECURITY: invalidate all sessions
+      tokenVersion: user.tokenVersion + 1,
+    });
+
+    return {
+      message: 'Password changed successfully',
+    };
   }
 
   // =========================
