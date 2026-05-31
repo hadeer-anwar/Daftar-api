@@ -48,6 +48,15 @@ export class RecurringTransactionsRepository {
     });
   }
 
+  async findByUserId(userId: string): Promise<RecurringTransactionDocument[]> {
+    return this.recurringModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        isActive: true,
+      })
+      .sort({ nextRunDate: 1 });
+  }
+
   async update(
     id: string,
     data: Partial<RecurringTransaction>,

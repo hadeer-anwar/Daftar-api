@@ -101,16 +101,10 @@ export class TransactionController {
     summary: 'Get all salary income transactions for the current user',
   })
   async getUserSalary(@CurrentUser() user: CurrentUserData) {
-    const filterDto: FilterTransactionDto = {
-      transactionType: TransactionType.INCOME,
-      incomeType: IncomeType.SALARY,
-      preset: DateRangePreset.THIS_MONTH,
-    };
-    console.log('Filtering salary transactions with:', filterDto);
-    return this.transactionService.findWithFilters(user.userId, filterDto);
+    return this.transactionService.findActiveSalaryByUser(user.userId);
   }
 
-  @Get('filter')
+  @Get('history')
   @ApiOperation({
     summary:
       'Filter transactions by type, date range (preset or custom), and category',

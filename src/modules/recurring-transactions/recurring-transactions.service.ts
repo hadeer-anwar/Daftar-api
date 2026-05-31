@@ -129,6 +129,10 @@ export class RecurringTransactionsService {
     return created;
   }
 
+  async findByUserId(userId: string) {
+    return this.recurringRepository.findByUserId(userId);
+  }
+
   async findById(userId: string, id: string) {
     const rule = await this.recurringRepository.findById(id);
     if (!rule || rule.userId.toString() !== userId) {

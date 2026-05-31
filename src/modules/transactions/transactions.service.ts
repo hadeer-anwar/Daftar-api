@@ -100,6 +100,10 @@ export class TransactionService {
     return this.transactionRepository.findWithFilters(userId, filterDto);
   }
 
+  async findActiveSalaryByUser(userId: string) {
+    return this.recurringRepository.findActiveSalaryByUser(userId);
+  }
+
   // async update(
   //   userId: string,
   //   transactionId: string,

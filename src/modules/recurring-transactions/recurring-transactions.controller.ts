@@ -1,5 +1,4 @@
 import {
-  Body,
   Controller,
   Delete,
   Get,
@@ -13,7 +12,6 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 
-import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
 import { RecurringTransactionsService } from './recurring-transactions.service';
 
 @ApiTags('Recurring Transactions')
@@ -25,15 +23,12 @@ export class RecurringTransactionsController {
     private readonly recurringService: RecurringTransactionsService,
   ) {}
 
-  @Post()
+  @Get()
   @ApiOperation({
-    summary: 'Create a recurring rule (and the first transaction immediately).',
+    summary: 'Get all active recurring rules for the current user.',
   })
-  async create(
-    @CurrentUser() user: CurrentUserData,
-    @Body() dto: CreateRecurringTransactionDto,
-  ) {
-    return this.recurringService.create(user.userId, dto);
+  async findAll(@CurrentUser() user: CurrentUserData) {
+    return this.recurringService.findByUserId(user.userId);
   }
 
   @Post('generate')
