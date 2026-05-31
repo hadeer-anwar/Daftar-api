@@ -8,7 +8,11 @@ export class MailService {
 
   private readonly senderName = 'Daftar';
 
-  async sendResetCode(toEmail: string, otp: string) {
+  async sendResetCode(
+    toEmail: string,
+    otp: string,
+    title = 'Password Reset Code',
+  ) {
     if (!this.apiKey) {
       throw new Error('BREVO_API_KEY is not defined');
     }
@@ -33,11 +37,11 @@ export class MailService {
             },
           ],
 
-          subject: 'Password Reset Code',
+          subject: title,
 
           htmlContent: `
               <div style="font-family: Arial, sans-serif; padding: 20px;">
-                <h2>Password Reset</h2>
+                <h2>${title}</h2>
 
                 <p>Your OTP code is:</p>
 

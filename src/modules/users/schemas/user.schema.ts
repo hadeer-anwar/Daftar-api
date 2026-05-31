@@ -100,6 +100,10 @@ export class User {
     default: 0,
   })
   totalExpense!: number;
+  @Prop()
+  emailVerificationExpires?: Date;
+  @Prop()
+  emailVerificationToken?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
