@@ -10,7 +10,11 @@ import { UsersRepository } from '../users/repositories/users.repository';
 import { RecurringTransactionsService } from '../recurring-transactions/recurring-transactions.service';
 import { RecurringFrequency } from '../recurring-transactions/enums/frequency.enum';
 
-import { TransactionType, Transaction } from './schemas/transactions.schema';
+import {
+  TransactionType,
+  Transaction,
+  IncomeType,
+} from './schemas/transactions.schema';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { FilterTransactionDto } from './dto/filter-transaction.dto';
@@ -37,9 +41,22 @@ export class TransactionService {
 
     let recurringId: Types.ObjectId | null = null;
     if (dto.repeat === 'monthly') {
+      if (
+        dto.transactionType === TransactionType.INCOME &&
+        dto.incomeType === IncomeType.SALARY
+      ) {
+        const existingSalaryRule =
+          await this.recurringRepository.findActiveSalaryByUser(userId);
+        if (existingSalaryRule) {
+          throw new ForbiddenException(
+            'An active monthly salary rule already exists for this user',
+          );
+        }
+      }
       const recurring = await this.recurringService.create(userId, {
         amount: dto.amount,
         type: dto.transactionType,
+        incomeType: dto.incomeType as IncomeType,
         frequency: RecurringFrequency.MONTHLY,
         startDate: effectiveDate.toISOString(),
         notes: dto.notes,
@@ -51,10 +68,17 @@ export class TransactionService {
       if (normalizeToDay(effectiveDate) <= normalizeToDay(now)) {
         await this.recurringService.generateDueTransactions(userId);
       }
+
+      return recurring;
     }
     const transaction = await this.transactionRepository.create({
-      ...dto,
       userId: new Types.ObjectId(userId),
+      amount: dto.amount,
+      transactionType: dto.transactionType,
+      categoryId: dto.categoryId,
+      notes: dto.notes,
+      incomeType: dto.incomeType as IncomeType | undefined,
+      repeat: dto.repeat,
       date: effectiveDate,
       recurringId: recurringId || null,
     });
@@ -76,132 +100,132 @@ export class TransactionService {
     return this.transactionRepository.findWithFilters(userId, filterDto);
   }
 
-  async update(
-    userId: string,
-    transactionId: string,
-    dto: UpdateTransactionDto,
-  ) {
-    // ── 1. Fetch + authorize in one query ─────────────────────────────────────
-    const transaction = await this.transactionRepository.findByIdAndUser(
-      transactionId,
-      userId,
-    );
+  // async update(
+  //   userId: string,
+  //   transactionId: string,
+  //   dto: UpdateTransactionDto,
+  // ) {
+  //   // ── 1. Fetch + authorize in one query ─────────────────────────────────────
+  //   const transaction = await this.transactionRepository.findByIdAndUser(
+  //     transactionId,
+  //     userId,
+  //   );
 
-    if (!transaction) {
-      throw new NotFoundException('Transaction not found');
-    }
+  //   if (!transaction) {
+  //     throw new NotFoundException('Transaction not found');
+  //   }
 
-    // ── 2. Compute effective state ────────────────────────────────────────────
-    const now = new Date();
-    const currentDate = new Date(transaction.date);
+  //   // ── 2. Compute effective state ────────────────────────────────────────────
+  //   const now = new Date();
+  //   const currentDate = new Date(transaction.date);
 
-    const effective = {
-      amount: dto.amount ?? transaction.amount,
-      transactionType: dto.transactionType ?? transaction.transactionType,
-      categoryId: dto.categoryId ?? transaction.categoryId,
-      incomeType: dto.incomeType ?? transaction.incomeType,
-      notes: dto.notes ?? transaction.notes,
-      repeat: dto.repeat ?? transaction.repeat,
-    };
+  //   const effective = {
+  //     amount: dto.amount ?? transaction.amount,
+  //     transactionType: dto.transactionType ?? transaction.transactionType,
+  //     categoryId: dto.categoryId ?? transaction.categoryId,
+  //     incomeType: dto.incomeType ?? transaction.incomeType,
+  //     notes: dto.notes ?? transaction.notes,
+  //     repeat: dto.repeat ?? transaction.repeat,
+  //   };
 
-    const isIncome = effective.transactionType === TransactionType.INCOME;
+  //   const isIncome = effective.transactionType === TransactionType.INCOME;
 
-    const rawDate = isIncome
-      ? (dto.payDate ?? currentDate.toISOString())
-      : (dto.date ?? currentDate.toISOString());
+  //   const rawDate = isIncome
+  //     ? (dto.payDate ?? currentDate.toISOString())
+  //     : (dto.date ?? currentDate.toISOString());
 
-    const effectiveDate = new Date(rawDate);
+  //   const effectiveDate = new Date(rawDate);
 
-    const dateChanged = effectiveDate.getTime() !== currentDate.getTime();
+  //   const dateChanged = effectiveDate.getTime() !== currentDate.getTime();
 
-    const oldRepeat = transaction.repeat;
-    const newRepeat = effective.repeat;
+  //   const oldRepeat = transaction.repeat;
+  //   const newRepeat = effective.repeat;
 
-    const wasRecurring = oldRepeat === 'monthly';
-    const willRecurring = newRepeat === 'monthly';
+  //   const wasRecurring = oldRepeat === 'monthly';
+  //   const willRecurring = newRepeat === 'monthly';
 
-    const recurringNeedsUpdate =
-      dateChanged || dto.amount != null || dto.notes != null;
+  //   const recurringNeedsUpdate =
+  //     dateChanged || dto.amount != null || dto.notes != null;
 
-    let recurringId = transaction.recurringId ?? null;
+  //   let recurringId = transaction.recurringId ?? null;
 
-    // ── 3. Handle recurring transition ───────────────────────────────────────
-    if (wasRecurring && !willRecurring && recurringId) {
-      // recurring → one-time
-      await this.recurringService.deactivate(recurringId.toString());
+  //   // ── 3. Handle recurring transition ───────────────────────────────────────
+  //   if (wasRecurring && !willRecurring && recurringId) {
+  //     // recurring → one-time
+  //     await this.recurringService.deactivate(recurringId.toString());
 
-      recurringId = null;
-    } else if (!wasRecurring && willRecurring) {
-      // one-time → recurring
-      const recurring = await this.recurringService.create(userId, {
-        amount: effective.amount,
-        type: effective.transactionType,
-        frequency: RecurringFrequency.MONTHLY,
-        startDate: effectiveDate.toISOString(),
-        notes: effective.notes,
-      });
+  //     recurringId = null;
+  //   } else if (!wasRecurring && willRecurring) {
+  //     // one-time → recurring
+  //     const recurring = await this.recurringService.create(userId, {
+  //       amount: effective.amount,
+  //       type: effective.transactionType,
+  //       frequency: RecurringFrequency.MONTHLY,
+  //       startDate: effectiveDate.toISOString(),
+  //       notes: effective.notes,
+  //     });
 
-      recurringId = recurring._id;
-    } else if (
-      wasRecurring &&
-      willRecurring &&
-      recurringId &&
-      recurringNeedsUpdate
-    ) {
-      // recurring → recurring update
-      await this.recurringRepository.update(recurringId.toString(), {
-        ...(dateChanged && {
-          startDate: effectiveDate,
-          nextRunDate: effectiveDate,
-        }),
+  //     recurringId = recurring._id;
+  //   } else if (
+  //     wasRecurring &&
+  //     willRecurring &&
+  //     recurringId &&
+  //     recurringNeedsUpdate
+  //   ) {
+  //     // recurring → recurring update
+  //     await this.recurringRepository.update(recurringId.toString(), {
+  //       ...(dateChanged && {
+  //         startDate: effectiveDate,
+  //         nextRunDate: effectiveDate,
+  //       }),
 
-        ...(dto.amount != null && {
-          amount: dto.amount,
-        }),
+  //       ...(dto.amount != null && {
+  //         amount: dto.amount,
+  //       }),
 
-        ...(dto.notes != null && {
-          notes: dto.notes,
-        }),
-      });
-    }
+  //       ...(dto.notes != null && {
+  //         notes: dto.notes,
+  //       }),
+  //     });
+  //   }
 
-    // ── 4. Recalculate applied state ──────────────────────────────────────────
-    const isApplied = normalizeToDay(effectiveDate) <= normalizeToDay(now);
-    // console.log('Effective Date:', effectiveDate);
-    // console.log('Now:', now);
-    // console.log('Is Applied:', isApplied);
+  //   // ── 4. Recalculate applied state ──────────────────────────────────────────
+  //   const isApplied = normalizeToDay(effectiveDate) <= normalizeToDay(now);
+  //   // console.log('Effective Date:', effectiveDate);
+  //   // console.log('Now:', now);
+  //   // console.log('Is Applied:', isApplied);
 
-    // ── 5. Build optimized update payload ────────────────────────────────────
-    const updatePayload: Partial<Transaction> = {
-      recurringId,
-      repeat: newRepeat,
-      date: effectiveDate,
-      isApplied,
-    };
+  //   // ── 5. Build optimized update payload ────────────────────────────────────
+  //   const updatePayload: Partial<Transaction> = {
+  //     recurringId,
+  //     repeat: newRepeat,
+  //     date: effectiveDate,
+  //     isApplied,
+  //   };
 
-    if (dto.amount != null) {
-      updatePayload.amount = dto.amount;
-    }
+  //   if (dto.amount != null) {
+  //     updatePayload.amount = dto.amount;
+  //   }
 
-    if (dto.transactionType) {
-      updatePayload.transactionType = dto.transactionType;
-    }
+  //   if (dto.transactionType) {
+  //     updatePayload.transactionType = dto.transactionType;
+  //   }
 
-    if (dto.categoryId) {
-      updatePayload.categoryId = dto.categoryId;
-    }
+  //   if (dto.categoryId) {
+  //     updatePayload.categoryId = dto.categoryId;
+  //   }
 
-    if (dto.incomeType) {
-      updatePayload.incomeType = dto.incomeType;
-    }
+  //   if (dto.incomeType) {
+  //     updatePayload.incomeType = dto.incomeType;
+  //   }
 
-    if (dto.notes != null) {
-      updatePayload.notes = dto.notes;
-    }
+  //   if (dto.notes != null) {
+  //     updatePayload.notes = dto.notes;
+  //   }
 
-    // ── 6. Persist update ─────────────────────────────────────────────────────
-    return this.transactionRepository.updateById(transactionId, updatePayload);
-  }
+  //   // ── 6. Persist update ─────────────────────────────────────────────────────
+  //   return this.transactionRepository.updateById(transactionId, updatePayload);
+  // }
 
   async delete(userId: string, transactionId: string) {
     const transaction =

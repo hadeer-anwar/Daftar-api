@@ -51,7 +51,7 @@ export class Transaction {
   notes?: string;
 
   @Prop()
-  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
+  incomeType?: IncomeType;
 
   @Prop()
   repeat?: 'monthly' | 'one-time';
@@ -64,20 +64,5 @@ TransactionSchema.index(
   {
     unique: true,
     partialFilterExpression: { recurringId: { $type: 'objectId' } },
-  },
-);
-
-TransactionSchema.index(
-  {
-    userId: 1,
-    transactionType: 1,
-    incomeType: 1,
-  },
-  {
-    unique: true,
-    partialFilterExpression: {
-      transactionType: TransactionType.INCOME,
-      incomeType: 'salary',
-    },
   },
 );

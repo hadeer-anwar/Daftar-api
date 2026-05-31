@@ -137,15 +137,15 @@ export class TransactionController {
     return this.transactionService.getBalanceSummary(user.userId);
   }
 
-  @Patch(':transactionId')
-  @ApiOperation({ summary: 'Update a transaction (partial update supported)' })
-  async update(
-    @CurrentUser() user: CurrentUserData,
-    @Param('transactionId') transactionId: string,
-    @Body() dto: UpdateTransactionDto,
-  ) {
-    return this.transactionService.update(user.userId, transactionId, dto);
-  }
+  // @Patch(':transactionId')
+  // @ApiOperation({ summary: 'Update a transaction (partial update supported)' })
+  // async update(
+  //   @CurrentUser() user: CurrentUserData,
+  //   @Param('transactionId') transactionId: string,
+  //   @Body() dto: UpdateTransactionDto,
+  // ) {
+  //   return this.transactionService.update(user.userId, transactionId, dto);
+  // }
 
   @Delete(':transactionId')
   @ApiOperation({

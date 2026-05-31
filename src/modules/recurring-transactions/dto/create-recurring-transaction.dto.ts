@@ -11,7 +11,10 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { TransactionType } from '../../transactions/schemas/transactions.schema';
+import {
+  IncomeType,
+  TransactionType,
+} from '../../transactions/schemas/transactions.schema';
 import { RecurringFrequency } from '../enums/frequency.enum';
 
 export class CreateRecurringTransactionDto {
@@ -24,6 +27,16 @@ export class CreateRecurringTransactionDto {
   @ApiProperty({ enum: TransactionType, example: TransactionType.INCOME })
   @IsEnum(TransactionType)
   type!: TransactionType;
+
+  @ApiPropertyOptional({
+    enum: IncomeType,
+    example: IncomeType.SALARY,
+    description: 'Required if type is income',
+  })
+  @ValidateIf((o) => o.type === TransactionType.INCOME)
+  @IsNotEmpty({ message: 'incomeType is required for income recurring rules' })
+  @IsEnum(IncomeType)
+  incomeType?: IncomeType;
 
   @ApiPropertyOptional({
     example: '64abc123...',

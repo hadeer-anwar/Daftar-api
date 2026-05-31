@@ -34,6 +34,7 @@ export class RecurringTransactionsService {
       userId: userObjectId,
       amount: dto.amount,
       type: dto.type,
+      incomeType: dto.incomeType,
       frequency: dto.frequency,
       startDate,
       nextRunDate: calculateNextRunDate(startDate, dto.frequency),

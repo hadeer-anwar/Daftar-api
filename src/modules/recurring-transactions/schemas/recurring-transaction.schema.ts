@@ -1,7 +1,10 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-import { TransactionType } from '../../transactions/schemas/transactions.schema';
+import {
+  IncomeType,
+  TransactionType,
+} from '../../transactions/schemas/transactions.schema';
 import { RecurringFrequency } from '../enums/frequency.enum';
 
 export type RecurringTransactionDocument =
@@ -21,6 +24,9 @@ export class RecurringTransaction {
 
   @Prop({ required: true, enum: TransactionType })
   type!: TransactionType;
+
+  @Prop({ enum: IncomeType })
+  incomeType!: IncomeType;
 
   @Prop()
   categoryId?: string;
@@ -48,3 +54,13 @@ export const RecurringTransactionSchema =
   SchemaFactory.createForClass(RecurringTransaction);
 
 RecurringTransactionSchema.index({ userId: 1, nextRunDate: 1 });
+RecurringTransactionSchema.index(
+  { userId: 1, isActive: 1, incomeType: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      type: TransactionType.INCOME,
+      incomeType: IncomeType.SALARY,
+    },
+  },
+);
