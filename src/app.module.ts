@@ -8,6 +8,7 @@ import { CategoriesModule } from './modules/categories/categories.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { RecurringTransactionsModule } from './modules/recurring-transactions/recurring-transactions.module';
 import { ContentModule } from './modules/content/content.module';
+import { CloudinaryModule } from './modules/cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { ContentModule } from './modules/content/content.module';
     TransactionsModule,
     RecurringTransactionsModule,
     ContentModule,
+    CloudinaryModule,
   ],
   controllers: [],
   providers: [],

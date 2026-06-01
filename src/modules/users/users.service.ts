@@ -4,18 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { UsersRepository } from './repositories/users.repository';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { MailService } from '../mail/mail.service';
 import { generateOtp } from '../../common/utils/generate-otp';
 import * as crypto from 'crypto';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class UsersService {
   constructor(
     private readonly usersRepository: UsersRepository,
     private readonly mailService: MailService,
+    private readonly cloudinaryService: CloudinaryService,
   ) {}
 
   async getProfile(userId: string) {
@@ -26,6 +27,26 @@ export class UsersService {
     }
 
     return user;
+  }
+
+  async updateProfileImage(userId: string, file: Express.Multer.File) {
+    const user = await this.usersRepository.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    // delete old image
+    if (user.profileImagePublicId) {
+      await this.cloudinaryService.deleteImage(user.profileImagePublicId);
+    }
+    const uploaded = await this.cloudinaryService.uploadImage(file);
+    await this.usersRepository.updateById(userId, {
+      profileImage: uploaded.secure_url,
+      profileImagePublicId: uploaded.public_id,
+    });
+
+    return {
+      imageUrl: uploaded.secure_url,
+    };
   }
 
   async updateProfile(userId: string, data: UpdateUserDto) {
@@ -137,6 +158,15 @@ export class UsersService {
   }
 
   async deleteAccount(userId: string) {
+    const user = await this.usersRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.profileImagePublicId) {
+      await this.cloudinaryService.deleteImage(user.profileImagePublicId);
+    }
     const deletedUser = await this.usersRepository.deleteById(userId);
 
     if (!deletedUser) {

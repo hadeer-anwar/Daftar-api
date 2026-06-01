@@ -6,6 +6,7 @@ import { UsersService } from './users.service';
 import { UsersRepository } from './repositories/users.repository';
 import { User, UserSchema } from './schemas/user.schema';
 import { MailModule } from '../mail/mail.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { MailModule } from '../mail/mail.module';
       },
     ]),
     MailModule,
+    CloudinaryModule,
   ],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],

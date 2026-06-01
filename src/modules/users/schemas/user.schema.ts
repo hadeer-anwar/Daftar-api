@@ -112,6 +112,12 @@ export class User {
 
   @Prop({ default: false })
   pendingEmailVerified?: boolean;
+
+  @Prop()
+  profileImage?: string;
+
+  @Prop()
+  profileImagePublicId?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);
