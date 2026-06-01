@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -34,20 +35,19 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    if (!user.isEmailVerified) {
-      throw new NotFoundException('Email not verified');
-    }
-
-    if (data.email !== undefined) {
-      const existingUser = await this.usersRepository.findByEmail(data.email);
-
-      if (existingUser) {
-        throw new NotFoundException('Email is already in use');
-      }
-      user.email = data.email;
-    }
     if (data.name !== undefined) {
       user.name = data.name;
+    }
+
+    if (data.email && data.email !== user.email) {
+      if (user.pendingEmail !== data.email || !user.pendingEmailVerified) {
+        throw new BadRequestException('You should verify email first');
+      }
+
+      user.email = user.pendingEmail;
+      user.pendingEmail = undefined;
+      user.pendingEmailVerified = false;
+      user.isEmailVerified = true;
     }
 
     await user.save();
@@ -55,19 +55,46 @@ export class UsersService {
     return user;
   }
 
-  async requestEmailVerification(userId: string, email?: string) {
-    if (!email) {
-      return;
+  async requestEmailVerification(userId: string, email: string) {
+    const user = await this.usersRepository.findById(userId);
+
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
 
     const otp = generateOtp();
 
-    await this.mailService.sendResetCode(email, otp, 'Email Verification Code');
     const hashedOtp = crypto.createHash('sha256').update(otp).digest('hex');
-    await this.usersRepository.updateById(userId, {
-      emailVerificationToken: hashedOtp,
-      emailVerificationExpires: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
-    });
+
+    if (email !== user.email) {
+      const existingUser = await this.usersRepository.findByEmail(email);
+
+      if (existingUser) {
+        throw new ConflictException('Email is already in use');
+      }
+
+      await this.usersRepository.updateById(userId, {
+        pendingEmail: email,
+        pendingEmailVerified: false,
+        emailVerificationToken: hashedOtp,
+        emailVerificationExpires: new Date(Date.now() + 10 * 60 * 1000),
+      });
+    } else {
+      if (user.isEmailVerified) {
+        throw new BadRequestException('Email is already verified');
+      }
+
+      await this.usersRepository.updateById(userId, {
+        emailVerificationToken: hashedOtp,
+        emailVerificationExpires: new Date(Date.now() + 10 * 60 * 1000),
+      });
+    }
+
+    await this.mailService.sendResetCode(email, otp, 'Email Verification Code');
+
+    return {
+      message: 'Verification code sent successfully',
+    };
   }
 
   async verifyEmail(userId: string, code: string) {
@@ -77,6 +104,8 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
+    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
+
     if (
       !user.emailVerificationToken ||
       !user.emailVerificationExpires ||
@@ -85,17 +114,22 @@ export class UsersService {
       throw new BadRequestException('Verification code expired');
     }
 
-    const hashedCode = crypto.createHash('sha256').update(code).digest('hex');
-
     if (hashedCode !== user.emailVerificationToken) {
       throw new BadRequestException('Invalid verification code');
     }
 
-    user.isEmailVerified = true;
-    user.emailVerificationToken = undefined;
-    user.emailVerificationExpires = undefined;
+    const updateData: any = {
+      emailVerificationToken: undefined,
+      emailVerificationExpires: undefined,
+    };
 
-    await user.save();
+    if (user.pendingEmail) {
+      updateData.pendingEmailVerified = true;
+    } else {
+      updateData.isEmailVerified = true;
+    }
+
+    await this.usersRepository.updateById(userId, updateData);
 
     return {
       message: 'Email verified successfully',

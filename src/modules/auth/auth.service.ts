@@ -109,6 +109,7 @@ export class AuthService {
     await this.usersRepo.updateById(existingUser._id.toString(), {
       hashedRefreshToken,
       lastLoginAt: new Date(),
+      isEmailVerified: true, // Google accounts are already verified
     });
 
     return { accessToken, refreshToken };
