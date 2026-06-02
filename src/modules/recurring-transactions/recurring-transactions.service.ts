@@ -141,6 +141,18 @@ export class RecurringTransactionsService {
     return rule;
   }
 
+  async update(
+    userId: string,
+    id: string,
+    data: Partial<RecurringTransaction>,
+  ) {
+    const rule = await this.findById(userId, id);
+    if (!rule) {
+      throw new NotFoundException('Recurring transaction not found');
+    }
+    return this.recurringRepository.update(id, data);
+  }
+
   async deactivate(id: string) {
     return this.recurringRepository.update(id, { isActive: false });
   }

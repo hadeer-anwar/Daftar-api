@@ -10,11 +10,7 @@ import { UsersRepository } from '../users/repositories/users.repository';
 import { RecurringTransactionsService } from '../recurring-transactions/recurring-transactions.service';
 import { RecurringFrequency } from '../recurring-transactions/enums/frequency.enum';
 
-import {
-  TransactionType,
-  Transaction,
-  IncomeType,
-} from './schemas/transactions.schema';
+import { TransactionType, IncomeType } from './schemas/transactions.schema';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { FilterTransactionDto } from './dto/filter-transaction.dto';
@@ -78,7 +74,6 @@ export class TransactionService {
       categoryId: dto.categoryId,
       notes: dto.notes,
       incomeType: dto.incomeType as IncomeType | undefined,
-      repeat: dto.repeat,
       date: effectiveDate,
       recurringId: recurringId || null,
     });
@@ -104,141 +99,98 @@ export class TransactionService {
     return this.recurringRepository.findActiveSalaryByUser(userId);
   }
 
-  // async update(
-  //   userId: string,
-  //   transactionId: string,
-  //   dto: UpdateTransactionDto,
-  // ) {
-  //   // ── 1. Fetch + authorize in one query ─────────────────────────────────────
-  //   const transaction = await this.transactionRepository.findByIdAndUser(
-  //     transactionId,
-  //     userId,
-  //   );
+  // update transaction history (amount, date, notes, category, incomeType)
+  async update(
+    userId: string,
+    transactionId: string,
+    dto: UpdateTransactionDto,
+  ) {
+    // ── 1. Fetch + authorize in one query ─────────────────────────────────────
+    const transaction = await this.transactionRepository.findByIdAndUser(
+      transactionId,
+      userId,
+    );
 
-  //   if (!transaction) {
-  //     throw new NotFoundException('Transaction not found');
-  //   }
+    if (!transaction) {
+      throw new NotFoundException('Transaction not found');
+    }
 
-  //   // ── 2. Compute effective state ────────────────────────────────────────────
-  //   const now = new Date();
-  //   const currentDate = new Date(transaction.date);
+    // ── 2. Compute effective state ────────────────────────────────────────────
+    const currentDate = new Date(transaction.date);
 
-  //   const effective = {
-  //     amount: dto.amount ?? transaction.amount,
-  //     transactionType: dto.transactionType ?? transaction.transactionType,
-  //     categoryId: dto.categoryId ?? transaction.categoryId,
-  //     incomeType: dto.incomeType ?? transaction.incomeType,
-  //     notes: dto.notes ?? transaction.notes,
-  //     repeat: dto.repeat ?? transaction.repeat,
-  //   };
+    const effective = {
+      amount: dto.amount ?? transaction.amount,
+      transactionType: dto.transactionType ?? transaction.transactionType,
+      categoryId: dto.categoryId ?? transaction.categoryId,
+      incomeType: (dto.incomeType ?? transaction.incomeType) as IncomeType,
+      notes: dto.notes ?? transaction.notes,
+      date: transaction.date, // will be overridden below if dto has date/payDate
+    };
 
-  //   const isIncome = effective.transactionType === TransactionType.INCOME;
+    const isIncome = effective.transactionType === TransactionType.INCOME;
 
-  //   const rawDate = isIncome
-  //     ? (dto.payDate ?? currentDate.toISOString())
-  //     : (dto.date ?? currentDate.toISOString());
+    const rawDate = isIncome
+      ? (dto.payDate ?? currentDate.toISOString())
+      : (dto.date ?? currentDate.toISOString());
 
-  //   const effectiveDate = new Date(rawDate);
+    const effectiveDate = new Date(rawDate);
+    effective.date = effectiveDate;
 
-  //   const dateChanged = effectiveDate.getTime() !== currentDate.getTime();
+    const oldType = transaction.transactionType;
+    const oldAmount = transaction.amount;
 
-  //   const oldRepeat = transaction.repeat;
-  //   const newRepeat = effective.repeat;
+    const newType = effective.transactionType;
+    const newAmount = effective.amount;
 
-  //   const wasRecurring = oldRepeat === 'monthly';
-  //   const willRecurring = newRepeat === 'monthly';
+    if (oldType === newType) {
+      const diff = newAmount - oldAmount;
 
-  //   const recurringNeedsUpdate =
-  //     dateChanged || dto.amount != null || dto.notes != null;
+      if (newType === TransactionType.INCOME) {
+        await this.usersRepository.updateBalances(userId, diff, 0);
+      } else {
+        await this.usersRepository.updateBalances(userId, 0, diff);
+      }
+    } else {
+      let incomeDelta = 0;
+      let expenseDelta = 0;
 
-  //   let recurringId = transaction.recurringId ?? null;
+      // Undo old transaction
+      if (oldType === TransactionType.INCOME) {
+        incomeDelta -= oldAmount;
+      } else {
+        expenseDelta -= oldAmount;
+      }
 
-  //   // ── 3. Handle recurring transition ───────────────────────────────────────
-  //   if (wasRecurring && !willRecurring && recurringId) {
-  //     // recurring → one-time
-  //     await this.recurringService.deactivate(recurringId.toString());
+      // Apply new transaction
+      if (newType === TransactionType.INCOME) {
+        incomeDelta += newAmount;
+      } else {
+        expenseDelta += newAmount;
+      }
 
-  //     recurringId = null;
-  //   } else if (!wasRecurring && willRecurring) {
-  //     // one-time → recurring
-  //     const recurring = await this.recurringService.create(userId, {
-  //       amount: effective.amount,
-  //       type: effective.transactionType,
-  //       frequency: RecurringFrequency.MONTHLY,
-  //       startDate: effectiveDate.toISOString(),
-  //       notes: effective.notes,
-  //     });
-
-  //     recurringId = recurring._id;
-  //   } else if (
-  //     wasRecurring &&
-  //     willRecurring &&
-  //     recurringId &&
-  //     recurringNeedsUpdate
-  //   ) {
-  //     // recurring → recurring update
-  //     await this.recurringRepository.update(recurringId.toString(), {
-  //       ...(dateChanged && {
-  //         startDate: effectiveDate,
-  //         nextRunDate: effectiveDate,
-  //       }),
-
-  //       ...(dto.amount != null && {
-  //         amount: dto.amount,
-  //       }),
-
-  //       ...(dto.notes != null && {
-  //         notes: dto.notes,
-  //       }),
-  //     });
-  //   }
-
-  //   // ── 4. Recalculate applied state ──────────────────────────────────────────
-  //   const isApplied = normalizeToDay(effectiveDate) <= normalizeToDay(now);
-  //   // console.log('Effective Date:', effectiveDate);
-  //   // console.log('Now:', now);
-  //   // console.log('Is Applied:', isApplied);
-
-  //   // ── 5. Build optimized update payload ────────────────────────────────────
-  //   const updatePayload: Partial<Transaction> = {
-  //     recurringId,
-  //     repeat: newRepeat,
-  //     date: effectiveDate,
-  //     isApplied,
-  //   };
-
-  //   if (dto.amount != null) {
-  //     updatePayload.amount = dto.amount;
-  //   }
-
-  //   if (dto.transactionType) {
-  //     updatePayload.transactionType = dto.transactionType;
-  //   }
-
-  //   if (dto.categoryId) {
-  //     updatePayload.categoryId = dto.categoryId;
-  //   }
-
-  //   if (dto.incomeType) {
-  //     updatePayload.incomeType = dto.incomeType;
-  //   }
-
-  //   if (dto.notes != null) {
-  //     updatePayload.notes = dto.notes;
-  //   }
-
-  //   // ── 6. Persist update ─────────────────────────────────────────────────────
-  //   return this.transactionRepository.updateById(transactionId, updatePayload);
-  // }
+      await this.usersRepository.updateBalances(
+        userId,
+        incomeDelta,
+        expenseDelta,
+      );
+    }
+    return this.transactionRepository.updateById(transactionId, effective);
+  }
 
   async delete(userId: string, transactionId: string) {
-    const transaction =
-      await this.transactionRepository.findById(transactionId);
+    const transaction = await this.transactionRepository.findByIdAndUser(
+      transactionId,
+      userId,
+    );
     if (!transaction) throw new NotFoundException('Transaction not found');
 
-    if (transaction.userId?.toString() !== userId) {
-      throw new ForbiddenException('Access denied');
+    const amount = transaction.amount;
+    if (transaction.transactionType === TransactionType.INCOME) {
+      await this.usersRepository.updateBalances(userId, -amount, 0);
+    } else {
+      await this.usersRepository.updateBalances(userId, 0, -amount);
     }
+
     await this.transactionRepository.deleteById(transactionId);
 
     return { message: 'Transaction deleted successfully' };

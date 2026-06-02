@@ -3,8 +3,10 @@ import {
   Delete,
   Get,
   Param,
+  Patch,
   Post,
   UseGuards,
+  Body,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -13,6 +15,7 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 
 import { RecurringTransactionsService } from './recurring-transactions.service';
+import { UpdateRecurringTransactionDto } from './dto/update-recurring-transaction.dto';
 
 @ApiTags('Recurring Transactions')
 @ApiBearerAuth('accessToken')
@@ -47,6 +50,16 @@ export class RecurringTransactionsController {
   @ApiOperation({ summary: 'Get a recurring rule by id.' })
   async findOne(@CurrentUser() user: CurrentUserData, @Param('id') id: string) {
     return this.recurringService.findById(user.userId, id);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update a recurring rule.' })
+  async update(
+    @CurrentUser() user: CurrentUserData,
+    @Param('id') id: string,
+    @Body() dto: UpdateRecurringTransactionDto,
+  ) {
+    return this.recurringService.update(user.userId, id, dto);
   }
 
   @Delete(':id')

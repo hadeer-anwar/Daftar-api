@@ -45,16 +45,10 @@ export class Transaction {
   recurringId?: Types.ObjectId | null;
 
   @Prop()
-  isApplied?: boolean;
-
-  @Prop()
   notes?: string;
 
   @Prop()
   incomeType?: IncomeType;
-
-  @Prop()
-  repeat?: 'monthly' | 'one-time';
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

@@ -21,15 +21,11 @@ import {
 
 import { TransactionService } from './transactions.service';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
-import {
-  DateRangePreset,
-  FilterTransactionDto,
-} from './dto/filter-transaction.dto';
+import { FilterTransactionDto } from './dto/filter-transaction.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 import { CreateIncomeTransactionDto } from './dto/create-income.dto';
 import { CreateExpenseTransactionDto } from './dto/create-expense.dto';
-import { TransactionType, IncomeType } from './schemas/transactions.schema';
 import { RecurringTransactionsService } from '../recurring-transactions/recurring-transactions.service';
 
 @ApiTags('Transactions')
@@ -127,19 +123,19 @@ export class TransactionController {
   @Get('balances/summary')
   @ApiOperation({ summary: 'Get a summary of transaction balances' })
   async getBalanceSummary(@CurrentUser() user: CurrentUserData) {
-    await this.recurringService.generateDueTransactions(user.userId);
+    // await this.recurringService.generateDueTransactions(user.userId);
     return this.transactionService.getBalanceSummary(user.userId);
   }
 
-  // @Patch(':transactionId')
-  // @ApiOperation({ summary: 'Update a transaction (partial update supported)' })
-  // async update(
-  //   @CurrentUser() user: CurrentUserData,
-  //   @Param('transactionId') transactionId: string,
-  //   @Body() dto: UpdateTransactionDto,
-  // ) {
-  //   return this.transactionService.update(user.userId, transactionId, dto);
-  // }
+  @Patch(':transactionId')
+  @ApiOperation({ summary: 'Update a transaction (partial update supported)' })
+  async update(
+    @CurrentUser() user: CurrentUserData,
+    @Param('transactionId') transactionId: string,
+    @Body() dto: UpdateTransactionDto,
+  ) {
+    return this.transactionService.update(user.userId, transactionId, dto);
+  }
 
   @Delete(':transactionId')
   @ApiOperation({
