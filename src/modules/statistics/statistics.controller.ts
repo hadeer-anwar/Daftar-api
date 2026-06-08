@@ -30,6 +30,9 @@ export class StatisticsController {
     } else if (query.year && query.week) {
       // Calculate date from year and week number
       date = this.getDateFromWeekNumber(query.year, query.week);
+    } else if (query.year) {
+      // Year-only (e.g. year timeframe): anchor to the start of that year
+      date = new Date(query.year, 0, 1);
     }
 
     const statistics = await this.statisticsService.getStatisticsAggregated(
@@ -38,9 +41,7 @@ export class StatisticsController {
       date,
     );
 
-    return this.normalizeStatisticsResponse(
-      statistics as unknown as Partial<StatisticsResponse>,
-    );
+    return this.normalizeStatisticsResponse(statistics);
   }
 
   private normalizeStatisticsResponse(

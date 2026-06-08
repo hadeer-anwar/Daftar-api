@@ -14,8 +14,11 @@ export enum TimeFrame {
   YEAR = 'year',
 }
 
+const UNCATEGORIZED_ID = 'uncategorized';
+const UNCATEGORIZED_NAME = 'Uncategorized';
+
 interface CategoryBreakdown {
-  categoryId: Types.ObjectId;
+  categoryId: string;
   name: string;
   color?: string;
   icon?: string;
@@ -118,16 +121,17 @@ export class StatisticsAggregationService {
     const totalSpent = totalSpentResult[0]?.total || 0;
     if (totalSpent === 0) return [];
 
-    // Get category breakdown
+    // Get category breakdown. Transactions store `categoryId` as a string while
+    // the categories collection keys on an ObjectId `_id`, so we convert before
+    // the lookup. Missing/invalid category ids fall into an "Uncategorized" bucket.
     const categoryAggregation = await this.transactionModel.aggregate<
-      CategoryBreakdown & { _id: Types.ObjectId }
+      CategoryBreakdown & { _id: string | null }
     >([
       {
         $match: {
           userId: new Types.ObjectId(userId),
           date: { $gte: startDate, $lte: endDate },
           transactionType: TransactionType.EXPENSE,
-          categoryId: { $exists: true, $ne: null },
         },
       },
       {
@@ -137,9 +141,21 @@ export class StatisticsAggregationService {
         },
       },
       {
+        $addFields: {
+          categoryObjectId: {
+            $convert: {
+              input: '$_id',
+              to: 'objectId',
+              onError: null,
+              onNull: null,
+            },
+          },
+        },
+      },
+      {
         $lookup: {
           from: 'categories',
-          localField: '_id',
+          localField: 'categoryObjectId',
           foreignField: '_id',
           as: 'categoryInfo',
         },
@@ -152,8 +168,8 @@ export class StatisticsAggregationService {
       },
       {
         $project: {
-          categoryId: '$_id',
-          name: { $ifNull: ['$categoryInfo.name', 'Uncategorized'] },
+          categoryId: { $ifNull: ['$_id', UNCATEGORIZED_ID] },
+          name: { $ifNull: ['$categoryInfo.name', UNCATEGORIZED_NAME] },
           color: '$categoryInfo.color',
           icon: '$categoryInfo.icon',
           amount: 1,
@@ -195,31 +211,23 @@ export class StatisticsAggregationService {
   }
 
   private async getWeeklyTrendAggregated(userId: string, currentDate: Date) {
-    const weekStart = this.getWeekStart(currentDate);
-    const pipeline: Record<string, any>[] = [];
-
-    for (let i = 0; i < 4; i++) {
-      const weekStartDate = new Date(weekStart);
-      weekStartDate.setDate(weekStart.getDate() - (3 - i) * 7);
-      const weekEndDate = new Date(weekStartDate);
-      weekEndDate.setDate(weekStartDate.getDate() + 6);
-      weekEndDate.setHours(23, 59, 59, 999);
-
-      pipeline.push({
-        $match: {
-          userId: new Types.ObjectId(userId),
-          date: { $gte: weekStartDate, $lte: weekEndDate },
-        },
-      });
+    // Build the last 4 week-start dates (oldest first) anchored on the
+    // selected week, so each result bucket maps to a fixed slot even when a
+    // week has no transactions.
+    const currentWeekStart = this.getWeekStart(currentDate);
+    const weekStarts: Date[] = [];
+    for (let i = 3; i >= 0; i--) {
+      const ws = new Date(currentWeekStart);
+      ws.setDate(currentWeekStart.getDate() - i * 7);
+      weekStarts.push(ws);
     }
 
-    // More efficient: use $facet for parallel aggregation
     const result = await this.transactionModel.aggregate([
       {
         $match: {
           userId: new Types.ObjectId(userId),
           date: {
-            $gte: this.getWeekStart(currentDate, 3),
+            $gte: weekStarts[0],
             $lte: this.getWeekEnd(currentDate),
           },
         },
@@ -262,29 +270,25 @@ export class StatisticsAggregationService {
           },
         },
       },
-      { $sort: { _id: 1 } },
     ]);
 
-    // Format results with labels
-    const trends: Array<{ label: string; spent: number; income: number }> = [];
-    for (let i = 0; i < result.length; i++) {
-      trends.push({
+    // Align each week bucket to its slot. Match by date range rather than exact
+    // equality so timezone differences between $dateTrunc (UTC) and the locally
+    // computed week starts don't drop buckets.
+    return weekStarts.map((ws, i) => {
+      const weekEnd = new Date(ws);
+      weekEnd.setDate(ws.getDate() + 7);
+      const bucket = result.find((r) => {
+        const bucketDate = new Date(r._id);
+        return bucketDate >= ws && bucketDate < weekEnd;
+      });
+
+      return {
         label: `Week #${i + 1}`,
-        spent: result[i]?.spent || 0,
-        income: result[i]?.income || 0,
-      });
-    }
-
-    // Ensure we have 4 weeks
-    while (trends.length < 4) {
-      trends.unshift({
-        label: `Week #${trends.length + 1}`,
-        spent: 0,
-        income: 0,
-      });
-    }
-
-    return trends;
+        spent: bucket?.spent || 0,
+        income: bucket?.income || 0,
+      };
+    });
   }
 
   private async getYearlyTrendAggregated(userId: string, year: number) {
