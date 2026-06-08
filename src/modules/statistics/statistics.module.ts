@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common';
 import { StatisticsController } from './statistics.controller';
 import { StatisticsService } from './statistics.service';
-import { StatisticsAggregationService } from './statistics-aggregation.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { CategorySchema } from '../categories/schemas/category.schema';
 import { TransactionSchema } from '../transactions/schemas/transactions.schema';
@@ -13,6 +12,6 @@ import { TransactionSchema } from '../transactions/schemas/transactions.schema';
     ]),
   ],
   controllers: [StatisticsController],
-  providers: [StatisticsService, StatisticsAggregationService],
+  providers: [StatisticsService],
 })
 export class StatisticsModule {}

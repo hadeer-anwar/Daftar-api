@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional } from 'class-validator';
+import { IsDateString, IsEnum, IsOptional } from 'class-validator';
 import { TimeFrame } from '../statistics.service';
 export class StatisticsParamsDto {
   @ApiPropertyOptional({
@@ -12,7 +12,7 @@ export class StatisticsParamsDto {
 
   @ApiPropertyOptional({
     description:
-      'Year for monthly or weekly statistics (required if timeFrame is month or week)',
+      'Year for monthly or yearly statistics (required if timeFrame is month or year)',
     example: 2024,
   })
   @IsOptional()
@@ -25,12 +25,19 @@ export class StatisticsParamsDto {
   })
   @IsOptional()
   month?: number;
-
   @ApiPropertyOptional({
-    description:
-      'Week number for weekly statistics (required if timeFrame is week)',
-    example: 20,
+    description: 'Custom start date for weekly statistics',
+    example: '2026-06-02',
   })
   @IsOptional()
-  week?: number;
+  @IsDateString()
+  startDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom end date for weekly statistics',
+    example: '2026-06-08',
+  })
+  @IsOptional()
+  @IsDateString()
+  endDate?: string;
 }

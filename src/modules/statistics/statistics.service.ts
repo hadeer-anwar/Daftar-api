@@ -1,4 +1,4 @@
-// statistics.service.ts
+// statistics-aggregation.service.ts
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
@@ -7,6 +7,7 @@ import {
   TransactionType,
 } from '../transactions/schemas/transactions.schema';
 import { Category } from '../categories/schemas/category.schema';
+import { StatisticsParamsDto } from './dto/statistics-params.dto';
 
 export enum TimeFrame {
   WEEK = 'week',
@@ -14,29 +15,16 @@ export enum TimeFrame {
   YEAR = 'year',
 }
 
-export interface CategoryStats {
+const UNCATEGORIZED_ID = 'uncategorized';
+const UNCATEGORIZED_NAME = 'Uncategorized';
+
+interface CategoryBreakdown {
   categoryId: string;
   name: string;
   color?: string;
   icon?: string;
   amount: number;
   percentage: number;
-}
-
-export interface StatisticsResponse {
-  timeFrame: TimeFrame;
-  periodLabel: string;
-  totalSpent: number;
-  totalIncome: number;
-  netBalance: number;
-  categories: CategoryStats[];
-  trend: TrendData[];
-}
-
-export interface TrendData {
-  label: string;
-  spent: number;
-  income: number;
 }
 
 @Injectable()
@@ -46,304 +34,473 @@ export class StatisticsService {
     @InjectModel(Category.name) private categoryModel: Model<Category>,
   ) {}
 
-  async getStatistics(
-    userId: string,
-    timeFrame: TimeFrame,
-    date: Date = new Date(),
-  ): Promise<StatisticsResponse> {
-    const { startDate, endDate, periodLabel } = this.getDateRange(
-      timeFrame,
-      date,
-    );
+  async getStatisticsAggregated(userId: string, params: StatisticsParamsDto) {
+    const { startDate, endDate, periodLabel } = this.buildDateRange(params);
 
-    const [transactions, trendData] = await Promise.all([
-      this.getTransactionsInRange(userId, startDate, endDate),
-      this.getTrendData(userId, timeFrame, startDate, endDate, date),
+    const [overview, categories, trend] = await Promise.all([
+      this.getOverviewStats(userId, startDate, endDate),
+      this.getCategoryBreakdownAggregated(userId, startDate, endDate),
+      this.getTrendDataAggregated(userId, params),
     ]);
 
-    const totalSpent = transactions
-      .filter((t) => t.transactionType === TransactionType.EXPENSE)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const totalIncome = transactions
-      .filter((t) => t.transactionType === TransactionType.INCOME)
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const categories = await this.getCategoryBreakdown(
-      userId,
-      transactions,
-      totalSpent,
-    );
-
     return {
-      timeFrame,
+      timeFrame: params.timeFrame,
       periodLabel,
-      totalSpent,
-      totalIncome,
-      netBalance: totalIncome - totalSpent,
+      ...overview,
       categories,
-      trend: trendData,
+      trend,
     };
   }
 
-  private getDateRange(
-    timeFrame: TimeFrame,
-    date: Date,
-  ): { startDate: Date; endDate: Date; periodLabel: string } {
-    const year = date.getFullYear();
-    const month = date.getMonth();
-    const day = date.getDate();
-
-    switch (timeFrame) {
-      case TimeFrame.WEEK: {
-        const startOfWeek = new Date(date);
-        const dayOfWeek = date.getDay();
-        const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        startOfWeek.setDate(day - diffToMonday);
-        startOfWeek.setHours(0, 0, 0, 0);
-
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
-        endOfWeek.setHours(23, 59, 59, 999);
-
-        const formatDate = (d: Date) => `${d.getMonth() + 1}/${d.getDate()}`;
-        const periodLabel = `${formatDate(startOfWeek)} - ${formatDate(endOfWeek)}`;
-
-        return { startDate: startOfWeek, endDate: endOfWeek, periodLabel };
-      }
-
-      case TimeFrame.MONTH: {
-        const startOfMonth = new Date(year, month, 1);
-        const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
-        const periodLabel = startOfMonth.toLocaleString('default', {
-          month: 'long',
-          year: 'numeric',
-        });
-        return { startDate: startOfMonth, endDate: endOfMonth, periodLabel };
-      }
-
-      case TimeFrame.YEAR: {
-        const startOfYear = new Date(year, 0, 1);
-        const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
-        const periodLabel = year.toString();
-        return { startDate: startOfYear, endDate: endOfYear, periodLabel };
-      }
-    }
-  }
-
-  private async getTransactionsInRange(
+  private async getOverviewStats(
     userId: string,
     startDate: Date,
     endDate: Date,
-  ): Promise<Transaction[]> {
-    return this.transactionModel
-      .find({
-        userId: new Types.ObjectId(userId),
-        date: { $gte: startDate, $lte: endDate },
-      })
-      .lean()
-      .exec();
+  ) {
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: startDate, $lte: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$transactionType',
+          total: { $sum: '$amount' },
+        },
+      },
+    ]);
+
+    let totalSpent = 0;
+    let totalIncome = 0;
+
+    for (const item of result) {
+      if (item._id === TransactionType.EXPENSE) {
+        totalSpent = item.total;
+      } else if (item._id === TransactionType.INCOME) {
+        totalIncome = item.total;
+      }
+    }
+
+    return {
+      totalSpent,
+      totalIncome,
+      netBalance: totalIncome - totalSpent,
+    };
   }
 
-  private async getCategoryBreakdown(
+  private async getCategoryBreakdownAggregated(
     userId: string,
-    transactions: Transaction[],
-    totalSpent: number,
-  ): Promise<CategoryStats[]> {
+    startDate: Date,
+    endDate: Date,
+  ): Promise<CategoryBreakdown[]> {
+    // Get total spent for percentage calculation
+    const totalSpentResult = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: startDate, $lte: endDate },
+          transactionType: TransactionType.EXPENSE,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: '$amount' },
+        },
+      },
+    ]);
+
+    const totalSpent = totalSpentResult[0]?.total || 0;
     if (totalSpent === 0) return [];
 
-    // Get all user categories for mapping
-    const categories = await this.categoryModel
-      .find({ userId: new Types.ObjectId(userId) })
-      .lean()
-      .exec();
+    // Get category breakdown. Transactions store `categoryId` as a string while
+    // the categories collection keys on an ObjectId `_id`, so we convert before
+    // the lookup. Missing/invalid category ids fall into an "Uncategorized" bucket.
+    const categoryAggregation = await this.transactionModel.aggregate<
+      CategoryBreakdown & { _id: string | null }
+    >([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: startDate, $lte: endDate },
+          transactionType: TransactionType.EXPENSE,
+        },
+      },
+      {
+        $group: {
+          _id: '$categoryId',
+          amount: { $sum: '$amount' },
+        },
+      },
+      {
+        $addFields: {
+          categoryObjectId: {
+            $convert: {
+              input: '$_id',
+              to: 'objectId',
+              onError: null,
+              onNull: null,
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'categoryObjectId',
+          foreignField: '_id',
+          as: 'categoryInfo',
+        },
+      },
+      {
+        $unwind: {
+          path: '$categoryInfo',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          categoryId: { $ifNull: ['$_id', UNCATEGORIZED_ID] },
+          name: { $ifNull: ['$categoryInfo.name', UNCATEGORIZED_NAME] },
+          color: '$categoryInfo.color',
+          icon: '$categoryInfo.icon',
+          amount: 1,
+          percentage: {
+            $multiply: [{ $divide: ['$amount', totalSpent] }, 100],
+          },
+        },
+      },
+      {
+        $sort: { amount: -1 },
+      },
+    ]);
 
-    const categoryMap = new Map(
-      categories.map((c) => [
-        c._id.toString(),
-        { name: c.name, color: c.color, icon: c.icon },
-      ]),
-    );
-
-    // Aggregate spent by category
-    const expenseTransactions = transactions.filter(
-      (t) => t.transactionType === TransactionType.EXPENSE,
-    );
-
-    const categoryAmounts = new Map<string, number>();
-
-    for (const transaction of expenseTransactions) {
-      if (transaction.categoryId) {
-        const current = categoryAmounts.get(transaction.categoryId) || 0;
-        categoryAmounts.set(
-          transaction.categoryId,
-          current + transaction.amount,
-        );
-      }
-    }
-
-    // Build result with percentages
-    const results: CategoryStats[] = [];
-
-    for (const [categoryId, amount] of categoryAmounts) {
-      const categoryInfo = categoryMap.get(categoryId);
-      results.push({
-        categoryId,
-        name: categoryInfo?.name || 'Uncategorized',
-        color: categoryInfo?.color,
-        icon: categoryInfo?.icon,
-        amount,
-        percentage: parseFloat(((amount / totalSpent) * 100).toFixed(1)),
-      });
-    }
-
-    // Sort by amount descending
-    return results.sort((a, b) => b.amount - a.amount);
+    return categoryAggregation.map((cat) => ({
+      categoryId: cat.categoryId,
+      name: cat.name,
+      color: cat.color,
+      icon: cat.icon,
+      amount: cat.amount,
+      percentage: parseFloat(cat.percentage.toFixed(1)),
+    }));
   }
 
-  private async getTrendData(
+  private async getTrendDataAggregated(
     userId: string,
-    timeFrame: TimeFrame,
-    startDate: Date,
-    endDate: Date,
-    currentDate: Date,
-  ): Promise<TrendData[]> {
+    params: StatisticsParamsDto,
+  ) {
+    const timeFrame = params.timeFrame;
+
     switch (timeFrame) {
       case TimeFrame.WEEK:
-        return this.getWeeklyTrend(userId, startDate);
+        return this.getWeeklyTrendAggregated(
+          userId,
+          new Date(params.startDate!),
+        );
+
       case TimeFrame.MONTH:
-        return this.getMonthlyTrend(userId, startDate);
+        return this.getMonthlyComparisonTrend(userId, params.year!);
+
       case TimeFrame.YEAR:
-        return this.getYearlyTrend(userId, currentDate.getFullYear());
+        return this.getYearlyTrendAggregated(userId, params.year!);
+
       default:
         return [];
     }
   }
 
-  private async getWeeklyTrend(
-    userId: string,
-    weekStart: Date,
-  ): Promise<TrendData[]> {
-    const trends: TrendData[] = [];
+  private async getWeeklyTrendAggregated(userId: string, selectedDate: Date) {
+    const year = selectedDate.getFullYear();
+    const month = selectedDate.getMonth();
 
-    for (let i = 0; i < 4; i++) {
-      const weekStartDate = new Date(weekStart);
-      weekStartDate.setDate(weekStart.getDate() - i * 7);
+    const startOfMonth = new Date(year, month, 1);
 
-      const weekEndDate = new Date(weekStartDate);
-      weekEndDate.setDate(weekStartDate.getDate() + 6);
-      weekEndDate.setHours(23, 59, 59, 999);
+    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-      const transactions = await this.getTransactionsInRange(
-        userId,
-        weekStartDate,
-        weekEndDate,
-      );
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: {
+            $gte: startOfMonth,
+            $lte: endOfMonth,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            week: {
+              $ceil: {
+                $divide: [{ $dayOfMonth: '$date' }, 7],
+              },
+            },
+            type: '$transactionType',
+          },
+          total: {
+            $sum: '$amount',
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.week',
+          spent: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.EXPENSE],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+          income: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.INCOME],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $sort: {
+          _id: 1,
+        },
+      },
+    ]);
 
-      const spent = transactions
-        .filter((t) => t.transactionType === TransactionType.EXPENSE)
-        .reduce((sum, t) => sum + t.amount, 0);
+    const weeksInMonth = Math.ceil(new Date(year, month + 1, 0).getDate() / 7);
 
-      const income = transactions
-        .filter((t) => t.transactionType === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
+    const selectedWeek = Math.ceil(selectedDate.getDate() / 7);
 
-      trends.unshift({
-        label: `Week #${4 - i}`,
-        spent,
-        income,
-      });
-    }
+    return {
+      selectedIndex: selectedWeek - 1,
+      data: Array.from({ length: weeksInMonth }, (_, index) => {
+        const weekNumber = index + 1;
 
-    return trends;
+        const weekData = result.find((r) => r._id === weekNumber);
+
+        return {
+          label: `Week #${weekNumber}`,
+          spent: weekData?.spent ?? 0,
+          income: weekData?.income ?? 0,
+        };
+      }),
+    };
   }
 
-  private async getMonthlyTrend(
-    userId: string,
-    monthStart: Date,
-  ): Promise<TrendData[]> {
-    const trends: TrendData[] = [];
-    const year = monthStart.getFullYear();
-    const month = monthStart.getMonth();
+  private async getYearlyTrendAggregated(userId: string, selectedYear: number) {
+    const currentYear = new Date().getFullYear();
 
-    // Get last 4 weeks of the month (or approximate weekly breakdown)
-    for (let week = 0; week < 4; week++) {
-      const weekStart = new Date(year, month, 1 + week * 7);
-      const weekEnd = new Date(
-        year,
-        month,
-        Math.min(
-          1 + (week + 1) * 7 - 1,
-          new Date(year, month + 1, 0).getDate(),
-        ),
-        23,
-        59,
-        59,
-        999,
-      );
+    const startYear = Math.max(selectedYear - 2, currentYear - 4);
 
-      if (weekStart > new Date(year, month + 1, 0)) break;
+    const endYear = currentYear;
 
-      const transactions = await this.getTransactionsInRange(
-        userId,
-        weekStart,
-        weekEnd,
-      );
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: {
+            $gte: new Date(startYear, 0, 1),
+            $lte: new Date(endYear, 11, 31, 23, 59, 59, 999),
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            year: { $year: '$date' },
+            type: '$transactionType',
+          },
+          total: { $sum: '$amount' },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.year',
+          spent: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.EXPENSE],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+          income: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.INCOME],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
 
-      const spent = transactions
-        .filter((t) => t.transactionType === TransactionType.EXPENSE)
-        .reduce((sum, t) => sum + t.amount, 0);
+    const years: { label: string; spent: number; income: number }[] = [];
 
-      const income = transactions
-        .filter((t) => t.transactionType === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
+    for (let year = startYear; year <= endYear; year++) {
+      const data = result.find((r) => r._id === year);
 
-      trends.push({
-        label: `Week ${week + 1}`,
-        spent,
-        income,
+      years.push({
+        label: year.toString(),
+        spent: data?.spent ?? 0,
+        income: data?.income ?? 0,
       });
     }
 
-    return trends;
+    return {
+      selectedIndex: years.findIndex(
+        (y) => y.label === selectedYear.toString(),
+      ),
+      data: years,
+    };
   }
 
-  private async getYearlyTrend(
-    userId: string,
-    year: number,
-  ): Promise<TrendData[]> {
-    const trends: TrendData[] = [];
+  private async getMonthlyComparisonTrend(userId: string, year: number) {
+    const startOfYear = new Date(year, 0, 1);
 
-    // Get last 12 months including current
-    for (let i = 11; i >= 0; i--) {
-      const targetDate = new Date(year, new Date().getMonth() - i, 1);
-      const yearForMonth = targetDate.getFullYear();
-      const month = targetDate.getMonth();
+    const endOfYear = new Date(year, 11, 31, 23, 59, 59, 999);
 
-      const startOfMonth = new Date(yearForMonth, month, 1);
-      const endOfMonth = new Date(yearForMonth, month + 1, 0, 23, 59, 59, 999);
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: {
+            $gte: startOfYear,
+            $lte: endOfYear,
+          },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            month: {
+              $month: '$date',
+            },
+            type: '$transactionType',
+          },
+          total: {
+            $sum: '$amount',
+          },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.month',
+          spent: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.EXPENSE],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+          income: {
+            $sum: {
+              $cond: [
+                {
+                  $eq: ['$_id.type', TransactionType.INCOME],
+                },
+                '$total',
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
 
-      const transactions = await this.getTransactionsInRange(
-        userId,
-        startOfMonth,
-        endOfMonth,
-      );
+    const monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
 
-      const spent = transactions
-        .filter((t) => t.transactionType === TransactionType.EXPENSE)
-        .reduce((sum, t) => sum + t.amount, 0);
+    return monthNames.map((label, index) => {
+      const month = index + 1;
 
-      const income = transactions
-        .filter((t) => t.transactionType === TransactionType.INCOME)
-        .reduce((sum, t) => sum + t.amount, 0);
+      const data = result.find((r) => r._id === month);
 
-      trends.push({
-        label: startOfMonth.toLocaleString('default', { month: 'short' }),
-        spent,
-        income,
-      });
+      return {
+        label,
+        spent: data?.spent ?? 0,
+        income: data?.income ?? 0,
+      };
+    });
+  }
+
+  private buildDateRange(params: StatisticsParamsDto) {
+    switch (params.timeFrame) {
+      case TimeFrame.WEEK: {
+        const startDate = new Date(params.startDate!);
+
+        const endDate = new Date(params.endDate!);
+
+        return {
+          startDate,
+          endDate,
+          periodLabel: `${params.startDate} - ${params.endDate}`,
+        };
+      }
+
+      case TimeFrame.MONTH: {
+        const startDate = new Date(params.year!, params.month! - 1, 1);
+
+        const endDate = new Date(
+          params.year!,
+          params.month!,
+          0,
+          23,
+          59,
+          59,
+          999,
+        );
+
+        return {
+          startDate,
+          endDate,
+          periodLabel: startDate.toLocaleString('default', {
+            month: 'long',
+            year: 'numeric',
+          }),
+        };
+      }
+
+      case TimeFrame.YEAR:
+        return {
+          startDate: new Date(params.year!, 0, 1),
+          endDate: new Date(params.year!, 11, 31, 23, 59, 59, 999),
+          periodLabel: params.year!.toString(),
+        };
     }
-
-    return trends;
   }
 }
