@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Post,
-  Get,
-  UseGuards,
-  Req,
-  Patch,
-} from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
+import { Body, Controller, Post, UseGuards, Patch } from '@nestjs/common';
 
 import { AuthService } from './auth.service';
 
@@ -23,6 +14,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { GoogleAuthDto } from './dto/google-auth.dto';
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -38,21 +30,9 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  @Get('google')
-  @UseGuards(AuthGuard('google'))
-  googleLogin() {
-    // redirects to Google
-  }
-
-  @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
-  googleCallback(@Req() req: any) {
-    // Successful authentication, generate JWT and create user in DB
-    return this.authService.googleSignIn({
-      email: req.user.email,
-      name: req.user.name,
-      googleId: req.user.googleId,
-    });
+  @Post('google')
+  async googleAuth(@Body() dto: GoogleAuthDto) {
+    return this.authService.googleAuth(dto.idToken);
   }
 
   @Post('forgot-password')

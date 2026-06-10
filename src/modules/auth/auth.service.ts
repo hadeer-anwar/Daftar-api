@@ -5,7 +5,8 @@ import {
   BadRequestException,
   HttpException,
 } from '@nestjs/common';
-
+import { OAuth2Client } from 'google-auth-library';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -27,11 +28,17 @@ import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
   constructor(
     private readonly usersRepo: UsersRepository,
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.googleClient = new OAuth2Client(
+      this.configService.get<string>('GOOGLE_WEB_CLIENT_ID'),
+    );
+  }
 
   // =========================
   // SIGNUP
@@ -87,32 +94,38 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  // =========================
-  // GOOGLE LOGIN
-  // =========================
-  async googleSignIn(user: any) {
-    let existingUser = await this.usersRepo.findByEmail(user.email);
-
-    if (!existingUser) {
-      existingUser = await this.usersRepo.create({
-        name: user.name,
-        email: user.email,
-        googleId: user.googleId,
-        provider: AuthProvider.GOOGLE,
-      });
-    }
-
-    const { accessToken, refreshToken } = this.generateTokens(existingUser);
-
-    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-
-    await this.usersRepo.updateById(existingUser._id.toString(), {
-      hashedRefreshToken,
-      lastLoginAt: new Date(),
-      isEmailVerified: true, // Google accounts are already verified
+  async googleAuth(idToken: string) {
+    const ticket = await this.googleClient.verifyIdToken({
+      idToken,
+      audience: this.configService.get<string>('GOOGLE_WEB_CLIENT_ID'),
     });
 
-    return { accessToken, refreshToken };
+    const payload = ticket.getPayload();
+
+    if (!payload) {
+      throw new UnauthorizedException('Invalid Google token');
+    }
+
+    const {
+      email,
+      name,
+      sub, // googleId
+      email_verified,
+      picture,
+    } = payload;
+
+    if (!email || !email_verified) {
+      throw new UnauthorizedException('Google email not verified');
+    }
+
+    const googleUser = {
+      email,
+      name,
+      googleId: sub,
+      profileImage: picture,
+    };
+
+    return this.googleSignIn(googleUser);
   }
 
   // =========================
@@ -364,6 +377,32 @@ export class AuthService {
 
     const refreshToken = this.jwtService.sign(payload, {
       expiresIn: '7d',
+    });
+
+    return { accessToken, refreshToken };
+  }
+
+  private async googleSignIn(user: any) {
+    let existingUser = await this.usersRepo.findByEmail(user.email);
+
+    if (!existingUser) {
+      existingUser = await this.usersRepo.create({
+        name: user.name,
+        email: user.email,
+        googleId: user.googleId,
+        provider: AuthProvider.GOOGLE,
+        profileImage: user.profileImage,
+      });
+    }
+
+    const { accessToken, refreshToken } = this.generateTokens(existingUser);
+
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+
+    await this.usersRepo.updateById(existingUser._id.toString(), {
+      hashedRefreshToken,
+      lastLoginAt: new Date(),
+      isEmailVerified: true, // Google accounts are already verified
     });
 
     return { accessToken, refreshToken };
