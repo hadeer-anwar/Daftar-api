@@ -6,7 +6,6 @@ import {
   Transaction,
   TransactionType,
 } from '../transactions/schemas/transactions.schema';
-import { Category } from '../categories/schemas/category.schema';
 import { StatisticsParamsDto } from './dto/statistics-params.dto';
 
 export enum TimeFrame {
@@ -22,6 +21,8 @@ interface CategoryBreakdown {
   categoryId: string;
   name: string;
   color?: string;
+  backgroundColor?: string;
+  borderColor?: string;
   icon?: string;
   amount: number;
   percentage: number;
@@ -31,7 +32,6 @@ interface CategoryBreakdown {
 export class StatisticsService {
   constructor(
     @InjectModel(Transaction.name) private transactionModel: Model<Transaction>,
-    @InjectModel(Category.name) private categoryModel: Model<Category>,
   ) {}
 
   async getStatisticsAggregated(userId: string, params: StatisticsParamsDto) {
@@ -165,6 +165,8 @@ export class StatisticsService {
           categoryId: { $ifNull: ['$_id', UNCATEGORIZED_ID] },
           name: { $ifNull: ['$categoryInfo.name', UNCATEGORIZED_NAME] },
           color: '$categoryInfo.color',
+          backgroundColor: '$categoryInfo.backgroundColor',
+          borderColor: '$categoryInfo.borderColor',
           icon: '$categoryInfo.icon',
           amount: 1,
           percentage: {
@@ -181,6 +183,8 @@ export class StatisticsService {
       categoryId: cat.categoryId,
       name: cat.name,
       color: cat.color,
+      backgroundColor: cat.backgroundColor,
+      borderColor: cat.borderColor,
       icon: cat.icon,
       amount: cat.amount,
       percentage: parseFloat(cat.percentage.toFixed(1)),

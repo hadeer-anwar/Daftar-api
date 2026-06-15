@@ -17,6 +17,20 @@ export class CreateCategoryDto {
   color?: string;
 
   @ApiProperty({
+    example: '#C70039',
+    description: 'The background color associated with the category',
+  })
+  @IsString()
+  backgroundColor?: string;
+
+  @ApiProperty({
+    example: '#900C3F',
+    description: 'The border color associated with the category',
+  })
+  @IsString()
+  borderColor?: string;
+
+  @ApiProperty({
     example: 'fa-solid fa-utensils',
     description: 'The icon associated with the category',
   })

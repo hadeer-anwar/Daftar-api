@@ -21,6 +21,12 @@ export class Category {
   color?: string;
 
   @Prop()
+  backgroundColor?: string;
+
+  @Prop()
+  borderColor?: string;
+
+  @Prop()
   icon?: string;
 }
 
