@@ -53,7 +53,7 @@ export class RecurringTransaction {
 export const RecurringTransactionSchema =
   SchemaFactory.createForClass(RecurringTransaction);
 
-RecurringTransactionSchema.index({ userId: 1, nextRunDate: 1 });
+RecurringTransactionSchema.index({ userId: 1, nextRunDate: 1, isActive: 1 });
 RecurringTransactionSchema.index(
   { userId: 1, isActive: 1, incomeType: 1 },
   {

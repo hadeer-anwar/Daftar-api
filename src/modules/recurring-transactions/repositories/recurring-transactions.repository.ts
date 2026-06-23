@@ -74,4 +74,17 @@ export class RecurringTransactionsRepository {
     const result = await doc.save();
     return result;
   }
+
+  async hasDueTransactions(userId: string, now: Date): Promise<boolean> {
+    const rule = await this.recurringModel
+      .findOne({
+        userId: new Types.ObjectId(userId),
+        isActive: true,
+        nextRunDate: { $lte: now },
+      })
+      .select('_id')
+      .lean();
+
+    return !!rule;
+  }
 }

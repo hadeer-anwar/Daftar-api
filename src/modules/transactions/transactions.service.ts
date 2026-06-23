@@ -62,7 +62,7 @@ export class TransactionService {
       // Check if we also need to generate a transaction immediately
       const now = new Date();
       if (normalizeToDay(effectiveDate) <= normalizeToDay(now)) {
-        await this.recurringService.generateDueTransactions(userId);
+        await this.recurringService.sync(userId);
       }
 
       return recurring;

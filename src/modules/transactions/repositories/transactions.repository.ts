@@ -42,7 +42,8 @@ export class TransactionRepository {
   async findByUserId(userId: string) {
     return this.transactionModel
       .find({ userId: new Types.ObjectId(userId) })
-      .sort({ date: -1 });
+      .sort({ date: -1 })
+      .limit(10);
   }
 
   async findAllByUser(userId: string) {

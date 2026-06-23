@@ -87,9 +87,13 @@ export class TransactionController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get all transactions for the current user' })
+  @ApiOperation({ summary: 'Get last 10 transactions for the current user' })
   async findAll(@CurrentUser() user: CurrentUserData) {
-    return this.transactionService.findAllByUser(user.userId);
+    const [, transactions] = await Promise.all([
+      this.recurringService.sync(user.userId),
+      this.transactionService.findAllByUser(user.userId),
+    ]);
+    return transactions;
   }
 
   @Get('salary')
@@ -97,7 +101,11 @@ export class TransactionController {
     summary: 'Get all salary income transactions for the current user',
   })
   async getUserSalary(@CurrentUser() user: CurrentUserData) {
-    return this.transactionService.findActiveSalaryByUser(user.userId);
+    const [, salary] = await Promise.all([
+      this.recurringService.sync(user.userId),
+      this.transactionService.findActiveSalaryByUser(user.userId),
+    ]);
+    return salary;
   }
 
   @Get('history')
@@ -116,14 +124,14 @@ export class TransactionController {
     @CurrentUser() user: CurrentUserData,
     @Query() filterDto: FilterTransactionDto,
   ) {
-    console.log('Filtering transactions with:', filterDto);
+    await this.recurringService.sync(user.userId);
     return this.transactionService.findWithFilters(user.userId, filterDto);
   }
 
   @Get('balances/summary')
   @ApiOperation({ summary: 'Get a summary of transaction balances' })
   async getBalanceSummary(@CurrentUser() user: CurrentUserData) {
-    // await this.recurringService.generateDueTransactions(user.userId);
+    await this.recurringService.sync(user.userId);
     return this.transactionService.getBalanceSummary(user.userId);
   }
 

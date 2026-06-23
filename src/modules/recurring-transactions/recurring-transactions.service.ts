@@ -29,7 +29,6 @@ export class RecurringTransactionsService {
   async create(userId: string, dto: CreateRecurringTransactionDto) {
     const startDate = new Date(dto.startDate);
     const userObjectId = new Types.ObjectId(userId);
-
     const rule = await this.recurringRepository.create({
       userId: userObjectId,
       amount: dto.amount,
@@ -37,8 +36,7 @@ export class RecurringTransactionsService {
       incomeType: dto.incomeType,
       frequency: dto.frequency,
       startDate,
-      nextRunDate: calculateNextRunDate(startDate, dto.frequency),
-      lastGeneratedAt: startDate,
+      nextRunDate: startDate,
       isActive: true,
       notes: dto.notes,
     });
@@ -76,7 +74,6 @@ export class RecurringTransactionsService {
 
     while (rule.nextRunDate && rule.nextRunDate <= now) {
       const runDate = new Date(rule.nextRunDate);
-      // todo check if it isApplied false update transaction to be true
       const alreadyExists =
         await this.transactionRepository.existsRecurringTransaction(
           rule._id,
@@ -155,6 +152,17 @@ export class RecurringTransactionsService {
 
   async deactivate(id: string) {
     return this.recurringRepository.update(id, { isActive: false });
+  }
+
+  async sync(userId: string): Promise<void> {
+    const hasDueTransactions =
+      await this.recurringRepository.hasDueTransactions(userId, new Date());
+
+    if (!hasDueTransactions) {
+      return;
+    }
+
+    await this.generateDueTransactions(userId);
   }
 
   private isDuplicateKeyError(err: unknown): boolean {

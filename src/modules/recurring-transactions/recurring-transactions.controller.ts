@@ -4,7 +4,6 @@ import {
   Get,
   Param,
   Patch,
-  Post,
   UseGuards,
   Body,
 } from '@nestjs/common';
@@ -34,17 +33,17 @@ export class RecurringTransactionsController {
     return this.recurringService.findByUserId(user.userId);
   }
 
-  @Post('generate')
-  @ApiOperation({
-    summary:
-      'Manually trigger generation of any due transactions for the current user.',
-  })
-  async generate(@CurrentUser() user: CurrentUserData) {
-    const generated = await this.recurringService.generateDueTransactions(
-      user.userId,
-    );
-    return { generatedCount: generated.length, transactions: generated };
-  }
+  // @Post('generate')
+  // @ApiOperation({
+  //   summary:
+  //     'Manually trigger generation of any due transactions for the current user.',
+  // })
+  // async generate(@CurrentUser() user: CurrentUserData) {
+  //   const generated = await this.recurringService.generateDueTransactions(
+  //     user.userId,
+  //   );
+  //   return { generatedCount: generated.length, transactions: generated };
+  // }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a recurring rule by id.' })
