@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 
-import { TransactionType } from '../../transactions/schemas/transactions.schema';
+import {
+  IncomeType,
+  TransactionType,
+} from '../../transactions/schemas/transactions.schema';
 import {
   RecurringTransaction,
   RecurringTransactionDocument,
@@ -44,6 +47,7 @@ export class RecurringTransactionsRepository {
     return this.recurringModel.findOne({
       userId: new Types.ObjectId(userId),
       type: TransactionType.INCOME,
+      incomeType: IncomeType.SALARY,
       isActive: true,
     });
   }
