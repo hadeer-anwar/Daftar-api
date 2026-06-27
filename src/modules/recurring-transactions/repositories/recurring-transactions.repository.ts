@@ -87,4 +87,8 @@ export class RecurringTransactionsRepository {
 
     return !!rule;
   }
+
+  async delete(id: string): Promise<void> {
+    await this.recurringModel.findByIdAndDelete(id);
+  }
 }

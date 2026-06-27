@@ -33,18 +33,6 @@ export class RecurringTransactionsController {
     return this.recurringService.findByUserId(user.userId);
   }
 
-  // @Post('generate')
-  // @ApiOperation({
-  //   summary:
-  //     'Manually trigger generation of any due transactions for the current user.',
-  // })
-  // async generate(@CurrentUser() user: CurrentUserData) {
-  //   const generated = await this.recurringService.generateDueTransactions(
-  //     user.userId,
-  //   );
-  //   return { generatedCount: generated.length, transactions: generated };
-  // }
-
   @Get(':id')
   @ApiOperation({ summary: 'Get a recurring rule by id.' })
   async findOne(@CurrentUser() user: CurrentUserData, @Param('id') id: string) {
@@ -62,8 +50,8 @@ export class RecurringTransactionsController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Deactivate a recurring rule (soft stop).' })
-  async deactivate(@Param('id') id: string) {
-    return this.recurringService.deactivate(id);
+  @ApiOperation({ summary: 'Delete a recurring rule.' })
+  async delete(@CurrentUser() user: CurrentUserData, @Param('id') id: string) {
+    return this.recurringService.delete(user.userId, id);
   }
 }

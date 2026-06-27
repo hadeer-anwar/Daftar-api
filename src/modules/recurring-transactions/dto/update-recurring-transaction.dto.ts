@@ -1,14 +1,14 @@
 import {
-  IsBoolean,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   Min,
 } from 'class-validator';
 
 import { IncomeType } from '../../transactions/schemas/transactions.schema';
-import { RecurringFrequency } from '../enums/frequency.enum';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateRecurringTransactionDto {
@@ -38,26 +38,24 @@ export class UpdateRecurringTransactionDto {
   notes?: string;
 
   @ApiPropertyOptional({
-    description: 'Frequency of the recurring transaction',
-    example: RecurringFrequency.MONTHLY,
-  })
-  @IsOptional()
-  @IsEnum(RecurringFrequency)
-  frequency?: RecurringFrequency;
-
-  @ApiPropertyOptional({
-    description: 'Indicates if the recurring transaction is active',
-    example: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
-
-  @ApiPropertyOptional({
     description: 'Type of the income',
     example: IncomeType.SALARY,
   })
   @IsOptional()
   @IsEnum(IncomeType)
   incomeType?: IncomeType;
+
+  @ApiPropertyOptional({
+    description:
+      'Day of the month for the next (and future) runs. ' +
+      'Only applies to monthly recurring rules',
+    example: 15,
+    minimum: 1,
+    maximum: 28,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(28)
+  dayOfMonth?: number;
 }

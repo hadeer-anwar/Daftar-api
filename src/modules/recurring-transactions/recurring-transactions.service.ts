@@ -1,4 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { Types } from 'mongoose';
 
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
@@ -15,6 +20,8 @@ import {
 } from './schemas/recurring-transaction.schema';
 import { calculateNextRunDate } from './utils/calculate-next-run-date.util';
 import { UsersRepository } from '../users/repositories/users.repository';
+import { UpdateRecurringTransactionDto } from './dto/update-recurring-transaction.dto';
+import { RecurringFrequency } from './enums/frequency.enum';
 
 @Injectable()
 export class RecurringTransactionsService {
@@ -86,6 +93,7 @@ export class RecurringTransactionsService {
             userId: rule.userId,
             amount: rule.amount,
             transactionType: rule.type,
+            incomeType: rule.incomeType,
             categoryId: rule.categoryId,
             date: runDate,
             recurringId: rule._id,
@@ -138,20 +146,72 @@ export class RecurringTransactionsService {
     return rule;
   }
 
-  async update(
-    userId: string,
-    id: string,
-    data: Partial<RecurringTransaction>,
-  ) {
+  async update(userId: string, id: string, dto: UpdateRecurringTransactionDto) {
     const rule = await this.findById(userId, id);
-    if (!rule) {
-      throw new NotFoundException('Recurring transaction not found');
+
+    const { dayOfMonth, amount, categoryId, notes, incomeType } = dto;
+
+    const patch: Partial<RecurringTransaction> = {};
+
+    if (amount !== undefined) patch.amount = amount;
+    if (categoryId !== undefined) patch.categoryId = categoryId;
+    if (notes !== undefined) patch.notes = notes;
+    if (incomeType !== undefined) patch.incomeType = incomeType;
+
+    // ── dayOfMonth → nextRunDate ─────────────────────────────────────────────
+    if (dayOfMonth !== undefined) {
+      if (rule.frequency !== RecurringFrequency.MONTHLY) {
+        throw new BadRequestException(
+          'dayOfMonth can only be set on monthly recurring rules.',
+        );
+      }
+
+      patch.nextRunDate = this.computeNextRunDateForDay(
+        rule.nextRunDate,
+        dayOfMonth,
+      );
     }
-    return this.recurringRepository.update(id, data);
+
+    return this.recurringRepository.update(id, patch);
+  }
+
+  private computeNextRunDateForDay(
+    currentNextRunDate: Date,
+    targetDay: number,
+  ): Date {
+    const now = new Date();
+
+    // Start from the month of the current nextRunDate.
+    const candidate = new Date(currentNextRunDate);
+    candidate.setDate(targetDay);
+    // Reset to midnight UTC to avoid time-of-day comparisons.
+    candidate.setHours(0, 0, 0, 0);
+
+    // If the candidate has already passed, push to the same day next month.
+    if (candidate <= now) {
+      candidate.setMonth(candidate.getMonth() + 1);
+
+      // Guard against month-end overflow (e.g. March 31 → April 31 → May 1).
+      // Since dayOfMonth is capped at 28 in the DTO this branch is purely
+      // defensive, but it's cheap and safe to keep.
+      if (candidate.getDate() !== targetDay) {
+        candidate.setDate(0); // last day of the previous month
+      }
+    }
+
+    return candidate;
   }
 
   async deactivate(id: string) {
     return this.recurringRepository.update(id, { isActive: false });
+  }
+
+  async delete(userId: string, id: string) {
+    const rule = await this.findById(userId, id);
+    if (!rule) {
+      throw new NotFoundException('Recurring transaction not found');
+    }
+    return this.recurringRepository.delete(id);
   }
 
   async sync(userId: string): Promise<void> {
