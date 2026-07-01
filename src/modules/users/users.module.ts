@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 
 import { UsersController } from './users.controller';
@@ -7,7 +7,8 @@ import { UsersRepository } from './repositories/users.repository';
 import { User, UserSchema } from './schemas/user.schema';
 import { MailModule } from '../mail/mail.module';
 import { CloudinaryModule } from '../cloudinary/cloudinary.module';
-
+import { RecurringTransactionsModule } from '../recurring-transactions/recurring-transactions.module';
+import { TransactionsModule } from '../transactions/transactions.module';
 @Module({
   imports: [
     MongooseModule.forFeature([
@@ -18,6 +19,8 @@ import { CloudinaryModule } from '../cloudinary/cloudinary.module';
     ]),
     MailModule,
     CloudinaryModule,
+    forwardRef(() => TransactionsModule),
+    forwardRef(() => RecurringTransactionsModule),
   ],
   controllers: [UsersController],
   providers: [UsersService, UsersRepository],

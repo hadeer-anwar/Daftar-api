@@ -165,4 +165,10 @@ export class TransactionRepository {
       end: endDate ? new Date(endDate) : new Date(),
     };
   }
+
+  async deleteManyByUserId(userId: string) {
+    return this.transactionModel.deleteMany({
+      userId: new Types.ObjectId(userId),
+    });
+  }
 }

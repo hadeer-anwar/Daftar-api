@@ -10,6 +10,8 @@ import { MailService } from '../mail/mail.service';
 import { generateOtp } from '../../common/utils/generate-otp';
 import * as crypto from 'crypto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
+import { RecurringTransactionsRepository } from '../recurring-transactions/repositories/recurring-transactions.repository';
+import { TransactionRepository } from '../transactions/repositories/transactions.repository';
 
 @Injectable()
 export class UsersService {
@@ -17,6 +19,8 @@ export class UsersService {
     private readonly usersRepository: UsersRepository,
     private readonly mailService: MailService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly transactionRepository: TransactionRepository,
+    private readonly recurringTransactionsRepository: RecurringTransactionsRepository,
   ) {}
 
   async getProfile(userId: string) {
@@ -167,6 +171,10 @@ export class UsersService {
     if (user.profileImagePublicId) {
       await this.cloudinaryService.deleteImage(user.profileImagePublicId);
     }
+
+    await this.transactionRepository.deleteManyByUserId(userId);
+    await this.recurringTransactionsRepository.deleteManyByUserId(userId);
+
     const deletedUser = await this.usersRepository.deleteById(userId);
 
     if (!deletedUser) {

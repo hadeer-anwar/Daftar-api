@@ -13,7 +13,7 @@ import { RecurringTransactionsModule } from '../recurring-transactions/recurring
     MongooseModule.forFeature([
       { name: Transaction.name, schema: TransactionSchema },
     ]),
-    UsersModule,
+    forwardRef(() => UsersModule),
     forwardRef(() => RecurringTransactionsModule),
   ],
   controllers: [TransactionController],

@@ -95,4 +95,10 @@ export class RecurringTransactionsRepository {
   async delete(id: string): Promise<void> {
     await this.recurringModel.findByIdAndDelete(id);
   }
+
+  async deleteManyByUserId(userId: string) {
+    return this.recurringModel.deleteMany({
+      userId: new Types.ObjectId(userId),
+    });
+  }
 }
