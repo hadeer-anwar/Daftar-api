@@ -220,85 +220,47 @@ export class StatisticsService {
     const month = selectedDate.getMonth();
 
     const startOfMonth = new Date(year, month, 1);
-
     const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
 
-    const result = await this.transactionModel.aggregate([
-      {
-        $match: {
-          userId: new Types.ObjectId(userId),
-          date: {
-            $gte: startOfMonth,
-            $lte: endOfMonth,
-          },
-        },
+    const transactions = await this.transactionModel.find({
+      userId: new Types.ObjectId(userId),
+      date: {
+        $gte: startOfMonth,
+        $lte: endOfMonth,
       },
-      {
-        $group: {
-          _id: {
-            week: {
-              $ceil: {
-                $divide: [{ $dayOfMonth: '$date' }, 7],
-              },
-            },
-            type: '$transactionType',
-          },
-          total: {
-            $sum: '$amount',
-          },
-        },
-      },
-      {
-        $group: {
-          _id: '$_id.week',
-          spent: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ['$_id.type', TransactionType.EXPENSE],
-                },
-                '$total',
-                0,
-              ],
-            },
-          },
-          income: {
-            $sum: {
-              $cond: [
-                {
-                  $eq: ['$_id.type', TransactionType.INCOME],
-                },
-                '$total',
-                0,
-              ],
-            },
-          },
-        },
-      },
-      {
-        $sort: {
-          _id: 1,
-        },
-      },
-    ]);
+    });
 
-    const weeksInMonth = Math.ceil(new Date(year, month + 1, 0).getDate() / 7);
+    const firstDayOfMonth = startOfMonth.getDay(); // Sunday = 0
+    const daysInMonth = endOfMonth.getDate();
 
-    const selectedWeek = Math.ceil(selectedDate.getDate() / 7);
+    const weeksInMonth = Math.ceil((firstDayOfMonth + daysInMonth) / 7);
+
+    const weeks = Array.from({ length: weeksInMonth }, (_, index) => ({
+      label: `Week #${index + 1}`,
+      spent: 0,
+      income: 0,
+    }));
+
+    const getWeekIndex = (date: Date) =>
+      Math.floor((date.getDate() + firstDayOfMonth - 1) / 7);
+
+    for (const transaction of transactions) {
+      const weekIndex = getWeekIndex(transaction.date);
+
+      if (weekIndex < 0 || weekIndex >= weeks.length) {
+        continue;
+      }
+
+      if (transaction.transactionType === TransactionType.EXPENSE) {
+        weeks[weekIndex].spent += transaction.amount;
+      } else {
+        weeks[weekIndex].income += transaction.amount;
+      }
+    }
 
     return {
-      selectedIndex: selectedWeek - 1,
-      data: Array.from({ length: weeksInMonth }, (_, index) => {
-        const weekNumber = index + 1;
-
-        const weekData = result.find((r) => r._id === weekNumber);
-
-        return {
-          label: `Week #${weekNumber}`,
-          spent: weekData?.spent ?? 0,
-          income: weekData?.income ?? 0,
-        };
-      }),
+      selectedIndex: getWeekIndex(selectedDate),
+      data: weeks,
     };
   }
 
