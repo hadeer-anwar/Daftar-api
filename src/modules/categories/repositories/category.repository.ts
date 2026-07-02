@@ -32,4 +32,12 @@ export class CategoryRepository {
   async deleteById(categoryId: string) {
     return this.categoryModel.findByIdAndDelete(categoryId);
   }
+
+  async hasCategories(userId: string): Promise<boolean> {
+    return !!(await this.categoryModel.exists({ userId }));
+  }
+
+  async createMany(categories: Partial<Category>[]): Promise<void> {
+    await this.categoryModel.insertMany(categories);
+  }
 }

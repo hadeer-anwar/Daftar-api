@@ -11,7 +11,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { GoogleStrategy } from './strategies/google-strategy';
 import { MailModule } from '../mail/mail.module';
 import { PassportModule } from '@nestjs/passport';
-
+import { CategoriesModule } from '../categories/categories.module';
 @Module({
   imports: [
     UsersModule,
@@ -27,6 +27,7 @@ import { PassportModule } from '@nestjs/passport';
         },
       }),
     }),
+    CategoriesModule,
   ],
 
   controllers: [AuthController],

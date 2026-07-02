@@ -25,6 +25,7 @@ import { ResendResetCodeDto } from './dto/resend-reset-code.dto';
 
 import { generateOtp } from '../../common/utils/generate-otp';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { CategorySeederService } from '../categories/category-seeder.service';
 
 @Injectable()
 export class AuthService {
@@ -34,6 +35,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly mailService: MailService,
     private readonly configService: ConfigService,
+    private readonly categorySeederService: CategorySeederService,
   ) {
     this.googleClient = new OAuth2Client(
       this.configService.get<string>('GOOGLE_WEB_CLIENT_ID'),
@@ -59,10 +61,12 @@ export class AuthService {
     const { accessToken, refreshToken } = this.generateTokens(user);
 
     const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
-
-    await this.usersRepo.updateById(user._id.toString(), {
-      hashedRefreshToken,
-    });
+    await Promise.all([
+      this.usersRepo.updateById(user._id.toString(), {
+        hashedRefreshToken,
+      }),
+      this.categorySeederService.seedDefaultCategories(user._id.toString()),
+    ]);
 
     return { accessToken, refreshToken };
   }
@@ -393,6 +397,9 @@ export class AuthService {
         provider: AuthProvider.GOOGLE,
         profileImage: user.profileImage,
       });
+      await this.categorySeederService.seedDefaultCategories(
+        user._id.toString(),
+      );
     }
 
     const { accessToken, refreshToken } = this.generateTokens(existingUser);
