@@ -40,7 +40,7 @@ export class StatisticsService {
     const [overview, categories, trend] = await Promise.all([
       this.getOverviewStats(userId, startDate, endDate),
       this.getCategoryBreakdownAggregated(userId, startDate, endDate),
-      this.getTrendDataAggregated(userId, params),
+      this.getTrendDataAggregated(userId, params, startDate, endDate),
     ]);
 
     return {
@@ -194,15 +194,16 @@ export class StatisticsService {
   private async getTrendDataAggregated(
     userId: string,
     params: StatisticsParamsDto,
+    startDate: Date,
+    endDate: Date,
   ) {
     const timeFrame = params.timeFrame;
 
     switch (timeFrame) {
       case TimeFrame.WEEK:
-        return this.getWeeklyTrendAggregated(
-          userId,
-          new Date(params.startDate!),
-        );
+        // startDate/endDate here are the exact selected-week boundaries
+        // already resolved by buildDateRange (one calendar week, 7 days).
+        return this.getWeeklyTrendAggregated(userId, startDate, endDate);
 
       case TimeFrame.MONTH:
         return this.getMonthlyComparisonTrend(userId, params.year!);
@@ -215,53 +216,109 @@ export class StatisticsService {
     }
   }
 
-  private async getWeeklyTrendAggregated(userId: string, selectedDate: Date) {
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
+  /**
+   * Builds a 7-point trend, one entry per day of the selected week
+   * (startDate -> endDate inclusive). Every day is always represented,
+   * even if it has zero transactions.
+   */
+  private async getWeeklyTrendAggregated(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ) {
+    // Normalize to the start of the first day and end of the last day
+    // so the $match range fully covers all 7 days regardless of the
+    // time component passed in.
+    const rangeStart = new Date(startDate);
+    rangeStart.setHours(0, 0, 0, 0);
 
-    const startOfMonth = new Date(year, month, 1);
-    const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59, 999);
+    const rangeEnd = new Date(endDate);
+    rangeEnd.setHours(23, 59, 59, 999);
 
-    const transactions = await this.transactionModel.find({
-      userId: new Types.ObjectId(userId),
-      date: {
-        $gte: startOfMonth,
-        $lte: endOfMonth,
-      },
-    });
-
-    const firstDayOfMonth = startOfMonth.getDay(); // Sunday = 0
-    const daysInMonth = endOfMonth.getDate();
-
-    const weeksInMonth = Math.ceil((firstDayOfMonth + daysInMonth) / 7);
-
-    const weeks = Array.from({ length: weeksInMonth }, (_, index) => ({
-      label: `Week #${index + 1}`,
-      spent: 0,
-      income: 0,
-    }));
-
-    const getWeekIndex = (date: Date) =>
-      Math.floor((date.getDate() + firstDayOfMonth - 1) / 7);
-
-    for (const transaction of transactions) {
-      const weekIndex = getWeekIndex(transaction.date);
-
-      if (weekIndex < 0 || weekIndex >= weeks.length) {
-        continue;
-      }
-
-      if (transaction.transactionType === TransactionType.EXPENSE) {
-        weeks[weekIndex].spent += transaction.amount;
-      } else {
-        weeks[weekIndex].income += transaction.amount;
-      }
+    // Build the 7 calendar days for the selected week, in order,
+    // starting from rangeStart.
+    const days: { key: string; label: string; date: Date }[] = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(rangeStart);
+      d.setDate(rangeStart.getDate() + i);
+      days.push({
+        key: this.toDateKey(d),
+        label: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        date: d,
+      });
     }
 
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: rangeStart, $lte: rangeEnd },
+        },
+      },
+      {
+        $group: {
+          _id: {
+            day: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+            type: '$transactionType',
+          },
+          total: { $sum: '$amount' },
+        },
+      },
+      {
+        $group: {
+          _id: '$_id.day',
+          spent: {
+            $sum: {
+              $cond: [
+                { $eq: ['$_id.type', TransactionType.EXPENSE] },
+                '$total',
+                0,
+              ],
+            },
+          },
+          income: {
+            $sum: {
+              $cond: [
+                { $eq: ['$_id.type', TransactionType.INCOME] },
+                '$total',
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+
+    const byDay = new Map<string, { spent: number; income: number }>();
+    for (const r of result) {
+      byDay.set(r._id, { spent: r.spent ?? 0, income: r.income ?? 0 });
+    }
+
+    const todayKey = this.toDateKey(new Date());
+
+    const data = days.map((d) => ({
+      label: d.label,
+      date: d.key,
+      spent: byDay.get(d.key)?.spent ?? 0,
+      income: byDay.get(d.key)?.income ?? 0,
+    }));
+
+    // Highlight "today" if it falls within the selected week, otherwise
+    // fall back to the last day of the range.
+    const todayIndex = days.findIndex((d) => d.key === todayKey);
+    const selectedIndex = todayIndex !== -1 ? todayIndex : days.length - 1;
+
     return {
-      selectedIndex: getWeekIndex(selectedDate),
-      data: weeks,
+      selectedIndex,
+      data,
     };
+  }
+
+  private toDateKey(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   private async getYearlyTrendAggregated(userId: string, selectedYear: number) {
