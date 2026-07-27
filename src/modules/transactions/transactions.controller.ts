@@ -77,6 +77,18 @@ export class TransactionController {
           notes: 'Monthly salary',
         },
       },
+      otherIncome: {
+        summary: 'Other Income Transaction',
+        value: {
+          amount: 250,
+          transactionType: 'income',
+          incomeType: 'other',
+          customIncomeType: 'Gift from family',
+          payDate: '2026-06-01',
+          repeat: 'one-time',
+          notes: 'Birthday gift',
+        },
+      },
     },
   })
   async create(

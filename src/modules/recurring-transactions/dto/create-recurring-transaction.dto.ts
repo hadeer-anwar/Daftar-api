@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
@@ -37,6 +38,23 @@ export class CreateRecurringTransactionDto {
   @IsNotEmpty({ message: 'incomeType is required for income recurring rules' })
   @IsEnum(IncomeType)
   incomeType?: IncomeType;
+
+  @ApiPropertyOptional({
+    example: 'Gift from family',
+    description:
+      'Required when incomeType is "other". Custom label for the income source.',
+    maxLength: 100,
+  })
+  @ValidateIf(
+    (o) =>
+      o.type === TransactionType.INCOME && o.incomeType === IncomeType.OTHER,
+  )
+  @IsNotEmpty({
+    message: 'customIncomeType is required when incomeType is other',
+  })
+  @IsString()
+  @MaxLength(100)
+  customIncomeType?: string;
 
   @ApiPropertyOptional({
     example: '64abc123...',

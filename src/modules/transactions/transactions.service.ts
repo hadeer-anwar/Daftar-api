@@ -52,7 +52,11 @@ export class TransactionService {
       const recurring = await this.recurringService.create(userId, {
         amount: dto.amount,
         type: dto.transactionType,
-        incomeType: dto.incomeType as IncomeType,
+        incomeType: dto.incomeType,
+        customIncomeType:
+          dto.incomeType === IncomeType.OTHER
+            ? dto.customIncomeType
+            : undefined,
         frequency: RecurringFrequency.MONTHLY,
         startDate: effectiveDate.toISOString(),
         notes: dto.notes,
@@ -73,7 +77,9 @@ export class TransactionService {
       transactionType: dto.transactionType,
       categoryId: dto.categoryId,
       notes: dto.notes,
-      incomeType: dto.incomeType as IncomeType | undefined,
+      incomeType: dto.incomeType,
+      customIncomeType:
+        dto.incomeType === IncomeType.OTHER ? dto.customIncomeType : undefined,
       date: effectiveDate,
       recurringId: recurringId || null,
     });
@@ -118,11 +124,17 @@ export class TransactionService {
     // ── 2. Compute effective state ────────────────────────────────────────────
     const currentDate = new Date(transaction.date);
 
+    const effectiveIncomeType = dto.incomeType ?? transaction.incomeType;
+
     const effective = {
       amount: dto.amount ?? transaction.amount,
       transactionType: dto.transactionType ?? transaction.transactionType,
       categoryId: dto.categoryId ?? transaction.categoryId,
-      incomeType: (dto.incomeType ?? transaction.incomeType) as IncomeType,
+      incomeType: effectiveIncomeType as IncomeType,
+      customIncomeType:
+        effectiveIncomeType === IncomeType.OTHER
+          ? (dto.customIncomeType ?? transaction.customIncomeType)
+          : undefined,
       notes: dto.notes ?? transaction.notes,
       date: transaction.date, // will be overridden below if dto has date/payDate
     };

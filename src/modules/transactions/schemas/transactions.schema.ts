@@ -49,6 +49,9 @@ export class Transaction {
 
   @Prop()
   incomeType?: IncomeType;
+
+  @Prop()
+  customIncomeType?: string;
 }
 
 export const TransactionSchema = SchemaFactory.createForClass(Transaction);

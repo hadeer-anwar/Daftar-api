@@ -5,10 +5,13 @@ import {
   IsOptional,
   IsString,
   IsDateString,
+  MaxLength,
   Min,
+  ValidateIf,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TransactionType } from '../schemas/transactions.schema';
+import { IncomeType, TransactionType } from '../schemas/transactions.schema';
 
 export class UpdateTransactionDto {
   @ApiPropertyOptional({ example: 750 })
@@ -44,11 +47,25 @@ export class UpdateTransactionDto {
   categoryId?: string;
 
   @ApiPropertyOptional({
-    enum: ['salary', 'part-time', 'freelance', 'bonus', 'other'],
+    enum: IncomeType,
   })
   @IsOptional()
-  @IsEnum(['salary', 'part-time', 'freelance', 'bonus', 'other'])
-  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
+  @IsEnum(IncomeType)
+  incomeType?: IncomeType;
+
+  @ApiPropertyOptional({
+    example: 'Gift from family',
+    description:
+      'Required when incomeType is "other". Custom label for the income source.',
+    maxLength: 100,
+  })
+  @ValidateIf((o) => o.incomeType === IncomeType.OTHER)
+  @IsNotEmpty({
+    message: 'customIncomeType is required when incomeType is other',
+  })
+  @IsString()
+  @MaxLength(100)
+  customIncomeType?: string;
 
   @ApiPropertyOptional({ enum: ['monthly', 'one-time'] })
   @IsOptional()

@@ -6,11 +6,12 @@ import {
   IsString,
   IsDateString,
   IsNotEmpty,
+  MaxLength,
   Min,
   ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TransactionType } from '../schemas/transactions.schema';
+import { IncomeType, TransactionType } from '../schemas/transactions.schema';
 
 export class CreateTransactionDto {
   @ApiProperty({
@@ -57,17 +58,35 @@ export class CreateTransactionDto {
   // ─── Income-only fields ─────────────────────────────────────────────────────
 
   @ApiProperty({
-    enum: ['salary', 'part-time', 'freelance', 'bonus', 'other'],
-    example: 'freelance',
+    enum: IncomeType,
+    example: IncomeType.FREELANCE,
     description: 'Required for income transactions',
   })
   @ValidateIf((o) => o.transactionType === TransactionType.INCOME)
   @IsNotEmpty({ message: 'incomeType is required for income transactions' })
-  @IsEnum(['salary', 'part-time', 'freelance', 'bonus', 'other'], {
+  @IsEnum(IncomeType, {
     message:
       'incomeType must be one of: salary, part-time, freelance, bonus, other',
   })
-  incomeType?: 'salary' | 'part-time' | 'freelance' | 'bonus' | 'other';
+  incomeType?: IncomeType;
+
+  @ApiPropertyOptional({
+    example: 'Gift from family',
+    description:
+      'Required when incomeType is "other". Custom label for the income source.',
+    maxLength: 100,
+  })
+  @ValidateIf(
+    (o) =>
+      o.transactionType === TransactionType.INCOME &&
+      o.incomeType === IncomeType.OTHER,
+  )
+  @IsNotEmpty({
+    message: 'customIncomeType is required when incomeType is other',
+  })
+  @IsString()
+  @MaxLength(100)
+  customIncomeType?: string;
 
   @ApiProperty({
     example: '2026-06-01',

@@ -8,6 +8,7 @@ import { Types } from 'mongoose';
 
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
 import {
+  IncomeType,
   Transaction,
   TransactionType,
 } from '../transactions/schemas/transactions.schema';
@@ -41,6 +42,7 @@ export class RecurringTransactionsService {
       amount: dto.amount,
       type: dto.type,
       incomeType: dto.incomeType,
+      customIncomeType: dto.customIncomeType,
       frequency: dto.frequency,
       startDate,
       nextRunDate: startDate,
@@ -94,6 +96,7 @@ export class RecurringTransactionsService {
             amount: rule.amount,
             transactionType: rule.type,
             incomeType: rule.incomeType,
+            customIncomeType: rule.customIncomeType,
             categoryId: rule.categoryId,
             date: runDate,
             recurringId: rule._id,
@@ -149,14 +152,28 @@ export class RecurringTransactionsService {
   async update(userId: string, id: string, dto: UpdateRecurringTransactionDto) {
     const rule = await this.findById(userId, id);
 
-    const { dayOfMonth, amount, categoryId, notes, incomeType } = dto;
+    const {
+      dayOfMonth,
+      amount,
+      categoryId,
+      notes,
+      incomeType,
+      customIncomeType,
+    } = dto;
 
     const patch: Partial<RecurringTransaction> = {};
 
     if (amount !== undefined) patch.amount = amount;
     if (categoryId !== undefined) patch.categoryId = categoryId;
     if (notes !== undefined) patch.notes = notes;
-    if (incomeType !== undefined) patch.incomeType = incomeType;
+    if (incomeType !== undefined) {
+      patch.incomeType = incomeType;
+      if (incomeType !== IncomeType.OTHER) {
+        patch.customIncomeType = undefined;
+      }
+    }
+    if (customIncomeType !== undefined)
+      patch.customIncomeType = customIncomeType;
 
     // ── dayOfMonth → nextRunDate ─────────────────────────────────────────────
     if (dayOfMonth !== undefined) {

@@ -29,6 +29,9 @@ export class RecurringTransaction {
   incomeType!: IncomeType;
 
   @Prop()
+  customIncomeType?: string;
+
+  @Prop()
   categoryId?: string;
 
   @Prop({ required: true, enum: RecurringFrequency })
