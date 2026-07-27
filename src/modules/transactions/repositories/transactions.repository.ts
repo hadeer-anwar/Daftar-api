@@ -15,6 +15,20 @@ export interface TransactionFilterOptions {
   startDate?: string;
   endDate?: string;
   categoryId?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface PaginatedTransactions {
+  data: Transaction[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 @Injectable()
@@ -64,7 +78,10 @@ export class TransactionRepository {
     return Boolean(exists);
   }
 
-  async findWithFilters(userId: string, options: TransactionFilterOptions) {
+  async findWithFilters(
+    userId: string,
+    options: TransactionFilterOptions,
+  ): Promise<PaginatedTransactions> {
     const {
       transactionType,
       incomeType,
@@ -72,6 +89,8 @@ export class TransactionRepository {
       startDate,
       endDate,
       categoryId,
+      page = 1,
+      limit = 20,
     } = options;
 
     const { start, end } = this.resolveDateRange(preset, startDate, endDate);
@@ -93,7 +112,31 @@ export class TransactionRepository {
       query.incomeType = incomeType;
     }
 
-    return this.transactionModel.find(query).sort({ date: -1 });
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await Promise.all([
+      this.transactionModel
+        .find(query)
+        .sort({ date: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.transactionModel.countDocuments(query),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 0;
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1 && total > 0,
+      },
+    };
   }
 
   async updateById(transactionId: string, data: Partial<Transaction>) {

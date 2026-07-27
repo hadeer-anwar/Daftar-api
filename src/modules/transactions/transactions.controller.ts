@@ -130,6 +130,8 @@ export class TransactionController {
       - **preset**: \`this_week\` | \`this_month\` | \`last_month\` | \`this_year\`
       - **startDate / endDate**: custom ISO date range (used when preset is not set)
       - **categoryId**: filter expense transactions by category
+      - **page**: page number (default \`1\`)
+      - **limit**: items per page (default \`20\`, max \`100\`)
     `,
   })
   async findWithFilters(

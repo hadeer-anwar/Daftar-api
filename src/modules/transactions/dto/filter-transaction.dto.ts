@@ -1,5 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsDateString, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsDateString,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { IncomeType, TransactionType } from '../schemas/transactions.schema';
 
 /**
@@ -21,6 +30,7 @@ export class FilterTransactionDto {
   @IsOptional()
   @IsEnum(TransactionType)
   transactionType?: TransactionType;
+
   @ApiPropertyOptional({
     enum: IncomeType,
     description: 'Filter by income type (salary, freelance, etc.)',
@@ -63,4 +73,30 @@ export class FilterTransactionDto {
   @IsOptional()
   @IsString()
   categoryId?: string;
+
+  @ApiPropertyOptional({
+    example: 1,
+    default: 1,
+    minimum: 1,
+    description: 'Page number (1-based)',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    example: 20,
+    default: 20,
+    minimum: 1,
+    maximum: 100,
+    description: 'Number of items per page',
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number = 20;
 }
