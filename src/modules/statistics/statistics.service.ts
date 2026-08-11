@@ -9,6 +9,7 @@ import {
 import { StatisticsParamsDto } from './dto/statistics-params.dto';
 
 export enum TimeFrame {
+  DAY = 'day',
   WEEK = 'week',
   MONTH = 'month',
   YEAR = 'year',
@@ -28,6 +29,20 @@ interface CategoryBreakdown {
   percentage: number;
 }
 
+interface DayTransactionAggregate {
+  _id: Types.ObjectId;
+  amount: number;
+  transactionType: TransactionType;
+  date: Date;
+  notes?: string;
+  categoryId: string;
+  categoryName: string;
+  categoryColor?: string;
+  categoryBackgroundColor?: string;
+  categoryBorderColor?: string;
+  categoryIcon?: string;
+}
+
 @Injectable()
 export class StatisticsService {
   constructor(
@@ -35,6 +50,9 @@ export class StatisticsService {
   ) {}
 
   async getStatisticsAggregated(userId: string, params: StatisticsParamsDto) {
+    if (params.timeFrame === TimeFrame.DAY) {
+      return this.getDayStatisticsAggregated(userId, params);
+    }
     const { startDate, endDate, periodLabel } = this.buildDateRange(params);
 
     const [overview, categories, trend] = await Promise.all([
@@ -50,6 +68,183 @@ export class StatisticsService {
       categories,
       trend,
     };
+  }
+
+  private async getDayStatisticsAggregated(
+    userId: string,
+    params: StatisticsParamsDto,
+  ) {
+    const {
+      startDate: startOfDay,
+      endDate: endOfDay,
+      periodLabel,
+    } = this.buildDateRange(params);
+
+    const [openingBalance, dayTransactions] = await Promise.all([
+      this.getOpeningBalanceAggregated(userId, startOfDay),
+      this.getDayTransactionsWithCategory(userId, startOfDay, endOfDay),
+    ]);
+
+    let totalSpent = 0;
+    let totalIncome = 0;
+    for (const txn of dayTransactions) {
+      if (txn.transactionType === TransactionType.EXPENSE) {
+        totalSpent += txn.amount;
+      } else {
+        totalIncome += txn.amount;
+      }
+    }
+
+    const netBalance = totalIncome - totalSpent;
+    const closingBalance = openingBalance + netBalance;
+
+    // dayTransactions is already sorted date ASC, createdAt ASC, _id ASC by
+    // the aggregation pipeline, so a single forward pass gives us a correct
+    // running balance for balanceBefore/balanceAfter on every transaction.
+    let runningBalance = openingBalance;
+    const transactions = dayTransactions.map((txn) => {
+      const balanceBefore = runningBalance;
+      const signedAmount =
+        txn.transactionType === TransactionType.INCOME
+          ? txn.amount
+          : -txn.amount;
+      runningBalance += signedAmount;
+      const balanceAfter = runningBalance;
+
+      return {
+        _id: txn._id,
+        amount: txn.amount,
+        transactionType: txn.transactionType,
+        date: txn.date,
+        notes: txn.notes,
+        categoryId: txn.categoryId,
+        categoryName: txn.categoryName,
+        categoryColor: txn.categoryColor,
+        categoryBackgroundColor: txn.categoryBackgroundColor,
+        categoryBorderColor: txn.categoryBorderColor,
+        categoryIcon: txn.categoryIcon,
+        // "percentage of daily expenses" only has meaning for expense
+        // transactions; income entries carry 0 rather than an unrelated %.
+        percentage:
+          txn.transactionType === TransactionType.EXPENSE && totalSpent > 0
+            ? parseFloat(((txn.amount / totalSpent) * 100).toFixed(1))
+            : 0,
+        balanceBefore,
+        balanceAfter,
+      };
+    });
+
+    return {
+      timeFrame: params.timeFrame,
+      periodLabel,
+      totalSpent,
+      totalIncome,
+      netBalance,
+      openingBalance,
+      closingBalance,
+      transactions,
+    };
+  }
+
+  /**
+   * Opening balance = total income - total expenses for every transaction
+   * strictly before `beforeDate`. Computed entirely in MongoDB so we never
+   * pull a user's full transaction history into Node.
+   */
+  private async getOpeningBalanceAggregated(
+    userId: string,
+    beforeDate: Date,
+  ): Promise<number> {
+    const result = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $lt: beforeDate },
+        },
+      },
+      {
+        $group: {
+          _id: '$transactionType',
+          total: { $sum: '$amount' },
+        },
+      },
+    ]);
+
+    let income = 0;
+    let expense = 0;
+    for (const item of result) {
+      if (item._id === TransactionType.INCOME) {
+        income = item.total;
+      } else if (item._id === TransactionType.EXPENSE) {
+        expense = item.total;
+      }
+    }
+
+    return income - expense;
+  }
+
+  /**
+   * Fetches only the selected day's transactions with category info attached
+   * (same categoryId -> ObjectId conversion + lookup pattern used in
+   * getCategoryBreakdownAggregated), sorted date ASC, createdAt ASC, _id ASC.
+   */
+  private async getDayTransactionsWithCategory(
+    userId: string,
+    startOfDay: Date,
+    endOfDay: Date,
+  ): Promise<DayTransactionAggregate[]> {
+    return this.transactionModel.aggregate<DayTransactionAggregate>([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: startOfDay, $lte: endOfDay },
+        },
+      },
+      {
+        $addFields: {
+          categoryObjectId: {
+            $convert: {
+              input: '$categoryId',
+              to: 'objectId',
+              onError: null,
+              onNull: null,
+            },
+          },
+        },
+      },
+      {
+        $lookup: {
+          from: 'categories',
+          localField: 'categoryObjectId',
+          foreignField: '_id',
+          as: 'categoryInfo',
+        },
+      },
+      {
+        $unwind: {
+          path: '$categoryInfo',
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $project: {
+          amount: 1,
+          transactionType: 1,
+          date: 1,
+          notes: 1,
+          createdAt: 1,
+          categoryId: { $ifNull: ['$categoryId', UNCATEGORIZED_ID] },
+          categoryName: { $ifNull: ['$categoryInfo.name', UNCATEGORIZED_NAME] },
+          categoryColor: '$categoryInfo.color',
+          categoryBackgroundColor: '$categoryInfo.backgroundColor',
+          categoryBorderColor: '$categoryInfo.borderColor',
+          categoryIcon: '$categoryInfo.icon',
+        },
+      },
+      {
+        $sort: { date: 1, createdAt: 1, _id: 1 },
+      },
+    ]);
   }
 
   private async getOverviewStats(
@@ -483,6 +678,25 @@ export class StatisticsService {
 
   private buildDateRange(params: StatisticsParamsDto) {
     switch (params.timeFrame) {
+      case TimeFrame.DAY: {
+        // Parsed from local date components (same convention as MONTH/YEAR
+        // below) rather than `new Date(params.date)` directly, to avoid the
+        // UTC-midnight parsing shift that a bare ISO-date string can cause.
+        const [year, month, day] = params.date!.split('-').map(Number);
+
+        const startDate = new Date(year, month - 1, day, 0, 0, 0, 0);
+        const endDate = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+        return {
+          startDate,
+          endDate,
+          periodLabel: startDate.toLocaleDateString('default', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          }),
+        };
+      }
       case TimeFrame.WEEK: {
         const startDate = new Date(params.startDate!);
 

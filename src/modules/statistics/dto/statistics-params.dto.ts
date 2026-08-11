@@ -1,5 +1,11 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  ValidateIf,
+} from 'class-validator';
 import { TimeFrame } from '../statistics.service';
 export class StatisticsParamsDto {
   @ApiPropertyOptional({
@@ -40,4 +46,13 @@ export class StatisticsParamsDto {
   @IsOptional()
   @IsDateString()
   endDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Date for daily statistics (required if timeFrame is day)',
+    example: '2026-06-02',
+  })
+  @ValidateIf((o: StatisticsParamsDto) => o.timeFrame === TimeFrame.DAY)
+  @IsNotEmpty({ message: 'date is required when timeFrame is day' })
+  @IsDateString({}, { message: 'date must be a valid ISO date string' })
+  date?: string;
 }

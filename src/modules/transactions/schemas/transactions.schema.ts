@@ -63,3 +63,5 @@ TransactionSchema.index(
     partialFilterExpression: { recurringId: { $type: 'objectId' } },
   },
 );
+
+TransactionSchema.index({ userId: 1, date: 1 });

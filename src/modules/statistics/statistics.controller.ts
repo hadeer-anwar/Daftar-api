@@ -52,6 +52,9 @@ export class StatisticsController {
   private normalizeStatisticsResponse(
     response: StatisticsResponse,
   ): StatisticsResponse {
+    if (!response.categories) {
+      return response;
+    }
     const categories =
       response.categories?.map((category) => ({
         ...category,
