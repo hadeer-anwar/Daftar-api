@@ -215,10 +215,64 @@ export class TransactionService {
       throw new NotFoundException('User not found');
     }
 
+    const salaryRule =
+      await this.recurringRepository.findActiveSalaryByUser(userId);
+
+    const startDay = salaryRule
+      ? new Date(salaryRule.startDate).getUTCDate()
+      : 1;
+
+    const { startDate, endDate } = this.getFinancialPeriod(
+      new Date(),
+      startDay,
+    );
+
+    const { monthlyIncome, monthlyExpense } =
+      await this.transactionRepository.getTotalsByPeriod(
+        userId,
+        startDate,
+        endDate,
+      );
+
     return {
       totalIncome: user.totalIncome,
       totalExpense: user.totalExpense,
       totalBalance: user.totalIncome - user.totalExpense,
+
+      monthlyIncome,
+      monthlyExpense,
+
+      periodStart: startDate,
+      periodEnd: endDate,
     };
+  }
+
+  private getFinancialPeriod(
+    now: Date,
+    startDay: number,
+  ): { startDate: Date; endDate: Date } {
+    if (!Number.isInteger(startDay) || startDay < 1 || startDay > 31) {
+      throw new Error('startDay must be an integer between 1 and 31');
+    }
+
+    const getBoundary = (year: number, month: number): Date => {
+      const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      const day = Math.min(startDay, lastDay);
+
+      return new Date(Date.UTC(year, month, day));
+    };
+
+    let startDate = getBoundary(now.getUTCFullYear(), now.getUTCMonth());
+
+    if (now < startDate) {
+      startDate = getBoundary(now.getUTCFullYear(), now.getUTCMonth() - 1);
+    }
+
+    const endDate = getBoundary(
+      startDate.getUTCFullYear(),
+      startDate.getUTCMonth() + 1,
+    );
+
+    return { startDate, endDate };
   }
 }

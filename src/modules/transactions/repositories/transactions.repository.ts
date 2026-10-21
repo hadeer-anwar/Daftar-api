@@ -214,4 +214,54 @@ export class TransactionRepository {
       userId: new Types.ObjectId(userId),
     });
   }
+
+  async getTotalsByPeriod(
+    userId: string,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<{ monthlyIncome: number; monthlyExpense: number }> {
+    const [result] = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(userId),
+          date: { $gte: startDate, $lt: endDate },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          monthlyIncome: {
+            $sum: {
+              $cond: [
+                { $eq: ['$transactionType', TransactionType.INCOME] },
+                '$amount',
+                0,
+              ],
+            },
+          },
+          monthlyExpense: {
+            $sum: {
+              $cond: [
+                { $eq: ['$transactionType', TransactionType.EXPENSE] },
+                '$amount',
+                0,
+              ],
+            },
+          },
+        },
+      },
+      {
+        $project: {
+          _id: 0,
+          monthlyIncome: 1,
+          monthlyExpense: 1,
+        },
+      },
+    ]);
+
+    return {
+      monthlyIncome: result?.monthlyIncome ?? 0,
+      monthlyExpense: result?.monthlyExpense ?? 0,
+    };
+  }
 }
