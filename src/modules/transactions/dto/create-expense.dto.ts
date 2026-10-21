@@ -17,4 +17,10 @@ export class CreateExpenseTransactionDto extends BaseTransactionDto {
   @ApiProperty()
   @IsDateString()
   date!: string;
+
+  @ApiProperty({
+    enum: ['monthly', 'one-time'],
+  })
+  @IsEnum(['monthly', 'one-time'])
+  repeat!: 'monthly' | 'one-time';
 }

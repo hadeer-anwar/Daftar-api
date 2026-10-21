@@ -48,6 +48,7 @@ export class RecurringTransactionsService {
       nextRunDate: startDate,
       isActive: true,
       notes: dto.notes,
+      categoryId: dto.categoryId,
     });
 
     return rule;

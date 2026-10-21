@@ -64,6 +64,7 @@ export class TransactionController {
           categoryId: '64abc123',
           date: '2026-05-24',
           notes: 'Pizza dinner',
+          repeat: 'one-time',
         },
       },
       income: {
