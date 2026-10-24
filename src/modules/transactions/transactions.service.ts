@@ -60,6 +60,8 @@ export class TransactionService {
         frequency: RecurringFrequency.MONTHLY,
         startDate: effectiveDate.toISOString(),
         notes: dto.notes,
+        categoryId: dto.categoryId,
+        repeatMonths: dto.repeatMonths!,
       });
       recurringId = recurring._id;
 

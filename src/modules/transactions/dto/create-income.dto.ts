@@ -3,9 +3,12 @@ import { BaseTransactionDto } from './base-transaction.dto';
 import {
   IsDateString,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsString,
+  Max,
   MaxLength,
+  Min,
   ValidateIf,
 } from 'class-validator';
 import { IncomeType, TransactionType } from '../schemas/transactions.schema';
@@ -50,4 +53,16 @@ export class CreateIncomeTransactionDto extends BaseTransactionDto {
   })
   @IsEnum(['monthly', 'one-time'])
   repeat!: 'monthly' | 'one-time';
+
+  @ApiPropertyOptional({
+    example: 3,
+    description: 'Total number of monthly occurrences, including the first.',
+    minimum: 1,
+    maximum: 120,
+  })
+  @ValidateIf((o: CreateIncomeTransactionDto) => o.repeat === 'monthly')
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  repeatMonths?: number;
 }

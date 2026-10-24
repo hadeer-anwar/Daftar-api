@@ -5,6 +5,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Types } from 'mongoose';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection, ClientSession } from 'mongoose';
 
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
 import {
@@ -32,6 +34,8 @@ export class RecurringTransactionsService {
     private readonly recurringRepository: RecurringTransactionsRepository,
     private readonly transactionRepository: TransactionRepository,
     private readonly usersRepository: UsersRepository,
+    @InjectConnection()
+    private readonly connection: Connection,
   ) {}
 
   async create(userId: string, dto: CreateRecurringTransactionDto) {
@@ -49,6 +53,8 @@ export class RecurringTransactionsService {
       isActive: true,
       notes: dto.notes,
       categoryId: dto.categoryId,
+      repeatMonths: dto.repeatMonths,
+      generatedCount: 0,
     });
 
     return rule;
@@ -83,7 +89,16 @@ export class RecurringTransactionsService {
     const created: Transaction[] = [];
 
     while (rule.nextRunDate && rule.nextRunDate <= now) {
+      if (
+        rule.repeatMonths !== undefined &&
+        rule.generatedCount >= rule.repeatMonths
+      ) {
+        rule.isActive = false;
+        break;
+      }
+
       const runDate = new Date(rule.nextRunDate);
+
       const alreadyExists =
         await this.transactionRepository.existsRecurringTransaction(
           rule._id,
@@ -103,7 +118,7 @@ export class RecurringTransactionsService {
             recurringId: rule._id,
             notes: rule.notes,
           });
-          // update user balance
+
           if (transaction.transactionType === TransactionType.INCOME) {
             await this.usersRepository.updateBalances(
               rule.userId.toString(),
@@ -117,9 +132,9 @@ export class RecurringTransactionsService {
               transaction.amount,
             );
           }
+
           created.push(transaction);
         } catch (err: unknown) {
-          // Unique index on { recurringId, date } can race; treat as duplicate.
           if (this.isDuplicateKeyError(err)) {
             this.logger.warn(
               `Duplicate recurring transaction skipped for rule ${rule.id} at ${runDate.toISOString()}`,
@@ -130,11 +145,22 @@ export class RecurringTransactionsService {
         }
       }
 
+      rule.generatedCount += 1;
       rule.lastGeneratedAt = runDate;
+
+      if (
+        rule.repeatMonths !== undefined &&
+        rule.generatedCount >= rule.repeatMonths
+      ) {
+        rule.isActive = false;
+        break;
+      }
+
       rule.nextRunDate = calculateNextRunDate(runDate, rule.frequency);
     }
 
     await this.recurringRepository.save(rule);
+
     return created;
   }
 

@@ -51,6 +51,12 @@ export class RecurringTransaction {
 
   @Prop()
   notes?: string;
+
+  @Prop({ type: Number, required: true, min: 1, max: 120 })
+  repeatMonths?: number;
+
+  @Prop({ type: Number, default: 0, min: 0 })
+  generatedCount!: number;
 }
 
 export const RecurringTransactionSchema =

@@ -3,10 +3,12 @@ import { Type } from 'class-transformer';
 import {
   IsDateString,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
   Min,
   ValidateIf,
@@ -83,4 +85,15 @@ export class CreateRecurringTransactionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Total number of monthly occurrences, including the first.',
+    minimum: 1,
+    maximum: 120,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  repeatMonths!: number;
 }

@@ -9,6 +9,8 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  Max,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IncomeType, TransactionType } from '../schemas/transactions.schema';
@@ -108,4 +110,15 @@ export class CreateTransactionDto {
     message: 'repeat must be either monthly or one-time',
   })
   repeat?: 'monthly' | 'one-time';
+
+  @ApiProperty({
+    example: 3,
+    description: 'Total number of monthly occurrences, including the first.',
+    minimum: 1,
+    maximum: 120,
+  })
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  repeatMonths?: number;
 }
