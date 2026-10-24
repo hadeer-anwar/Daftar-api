@@ -62,11 +62,18 @@ export class RecurringTransactionsRepository {
     });
   }
 
-  async findByUserId(userId: string): Promise<RecurringTransactionDocument[]> {
+  async findByUserId(
+    userId: string,
+    filters: {
+      type?: TransactionType;
+      isActive?: boolean;
+    } = {},
+  ): Promise<RecurringTransactionDocument[]> {
     return this.recurringModel
       .find({
         userId: new Types.ObjectId(userId),
-        isActive: true,
+        ...(filters.type !== undefined && { type: filters.type }),
+        ...(filters.isActive !== undefined && { isActive: filters.isActive }),
       })
       .sort({ nextRunDate: 1 });
   }

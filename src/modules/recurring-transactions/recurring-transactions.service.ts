@@ -16,6 +16,7 @@ import {
 } from '../transactions/schemas/transactions.schema';
 
 import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
+import { RecurringTransactionsQueryDto } from './dto/recurring-transactions-query.dto';
 import { RecurringTransactionsRepository } from './repositories/recurring-transactions.repository';
 import {
   RecurringTransaction,
@@ -268,8 +269,19 @@ export class RecurringTransactionsService {
     return updated;
   }
 
-  async findByUserId(userId: string) {
-    return this.recurringRepository.findByUserId(userId);
+  async findByUserId(
+    userId: string,
+    filters: RecurringTransactionsQueryDto = {},
+  ) {
+    return this.recurringRepository.findByUserId(userId, {
+      type:
+        filters.type === 'INCOME'
+          ? TransactionType.INCOME
+          : filters.type === 'EXPENSE'
+            ? TransactionType.EXPENSE
+            : undefined,
+      isActive: filters.isActive,
+    });
   }
 
   async findById(userId: string, id: string) {

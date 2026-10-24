@@ -1,5 +1,6 @@
 import { Types } from 'mongoose';
 import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 
 import { UsersRepository } from '../users/repositories/users.repository';
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
@@ -11,6 +12,7 @@ import {
 import { CreateTransactionDto } from '../transactions/dto/create-transaction.dto';
 import { TransactionService } from '../transactions/transactions.service';
 import { CreateRecurringTransactionDto } from './dto/create-recurring-transaction.dto';
+import { RecurringTransactionsQueryDto } from './dto/recurring-transactions-query.dto';
 import { RecurringFrequency } from './enums/frequency.enum';
 import { RecurringTransactionsRepository } from './repositories/recurring-transactions.repository';
 import { RecurringTransactionsService } from './recurring-transactions.service';
@@ -90,6 +92,7 @@ describe('RecurringTransactionsService generation', () => {
       startSession: jest.fn().mockResolvedValue(session),
     };
     const recurringRepository = {
+      findByUserId: jest.fn().mockResolvedValue([]),
       findDueTransactions: jest.fn(() =>
         Promise.resolve([cloneRule(persistedRule)]),
       ),
@@ -505,5 +508,56 @@ describe('RecurringTransactionsService generation', () => {
     });
 
     expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it('maps optional list filters to the recurring repository', async () => {
+    const harness = setup();
+
+    await harness.service.findByUserId(userId.toString(), {
+      type: 'INCOME',
+      isActive: false,
+    });
+
+    expect(harness.recurringRepository.findByUserId).toHaveBeenCalledWith(
+      userId.toString(),
+      {
+        type: TransactionType.INCOME,
+        isActive: false,
+      },
+    );
+  });
+
+  it.each([
+    ['type', 'income'],
+    ['type', 'OTHER'],
+    ['isActive', 'yes'],
+    ['isActive', '1'],
+  ])('rejects invalid recurring list query %s=%s', async (key, value) => {
+    const dto = Object.assign(new RecurringTransactionsQueryDto(), {
+      [key]: value,
+    });
+
+    expect(await validate(dto)).not.toHaveLength(0);
+  });
+
+  it.each([
+    ['INCOME', TransactionType.INCOME],
+    ['EXPENSE', TransactionType.EXPENSE],
+  ])('accepts recurring type filter %s', async (type) => {
+    const dto = Object.assign(new RecurringTransactionsQueryDto(), { type });
+
+    expect(await validate(dto)).toHaveLength(0);
+  });
+
+  it.each([
+    ['true', true],
+    ['false', false],
+  ])('transforms and accepts isActive=%s', async (raw, expected) => {
+    const dto = plainToInstance(RecurringTransactionsQueryDto, {
+      isActive: raw,
+    });
+
+    expect(await validate(dto)).toHaveLength(0);
+    expect(dto.isActive).toBe(expected);
   });
 });

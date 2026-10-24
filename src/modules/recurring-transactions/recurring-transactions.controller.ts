@@ -4,17 +4,24 @@ import {
   Get,
   Param,
   Patch,
+  Query,
   UseGuards,
   Body,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { CurrentUserData } from '../../common/interfaces/current-user.interface';
 
 import { RecurringTransactionsService } from './recurring-transactions.service';
 import { UpdateRecurringTransactionDto } from './dto/update-recurring-transaction.dto';
+import { RecurringTransactionsQueryDto } from './dto/recurring-transactions-query.dto';
 
 @ApiTags('Recurring Transactions')
 @ApiBearerAuth('accessToken')
@@ -27,10 +34,27 @@ export class RecurringTransactionsController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get all active recurring rules for the current user.',
+    summary: 'Get recurring rules for the current user.',
   })
-  async findAll(@CurrentUser() user: CurrentUserData) {
-    return this.recurringService.findByUserId(user.userId);
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['INCOME', 'EXPENSE'],
+    example: 'INCOME',
+    description: 'Filter by recurring transaction type.',
+  })
+  @ApiQuery({
+    name: 'isActive',
+    required: false,
+    enum: ['true', 'false'],
+    example: 'true',
+    description: 'Filter by whether the recurring rule is active.',
+  })
+  async findAll(
+    @CurrentUser() user: CurrentUserData,
+    @Query() filters: RecurringTransactionsQueryDto,
+  ) {
+    return this.recurringService.findByUserId(user.userId, filters);
   }
 
   @Get(':id')
