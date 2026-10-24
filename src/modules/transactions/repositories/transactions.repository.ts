@@ -5,7 +5,7 @@ import {
   Transaction,
   TransactionType,
 } from '../schemas/transactions.schema';
-import { Model, Types } from 'mongoose';
+import { ClientSession, Model, Types } from 'mongoose';
 import { DateRangePreset } from '../dto/filter-transaction.dto';
 
 export interface TransactionFilterOptions {
@@ -38,7 +38,14 @@ export class TransactionRepository {
     private readonly transactionModel: Model<Transaction>,
   ) {}
 
-  async create(data: Partial<Transaction>) {
+  async create(data: Partial<Transaction>, session?: ClientSession) {
+    if (session) {
+      const [transaction] = await this.transactionModel.create([data], {
+        session,
+      });
+      return transaction;
+    }
+
     return this.transactionModel.create(data);
   }
 
@@ -67,14 +74,21 @@ export class TransactionRepository {
   async existsRecurringTransaction(
     recurringId: string | Types.ObjectId,
     date: Date,
+    session?: ClientSession,
   ): Promise<boolean> {
-    const exists = await this.transactionModel.exists({
+    let query = this.transactionModel.exists({
       recurringId:
         typeof recurringId === 'string'
           ? new Types.ObjectId(recurringId)
           : recurringId,
       date,
     });
+
+    if (session) {
+      query = query.session(session);
+    }
+
+    const exists = await query;
     return Boolean(exists);
   }
 

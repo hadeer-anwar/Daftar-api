@@ -97,3 +97,22 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
 # Daftar-api
+
+## MongoDB transactions
+
+Recurring transaction generation uses MongoDB multi-document transactions to
+commit the transaction record, user balance, and recurring-rule progress
+together. MongoDB transactions require a replica set or a sharded cluster;
+standalone MongoDB deployments are not supported for this operation. Configure
+local MongoDB as a replica set, or use a replica-set-capable deployment, and
+include its replica-set name in `MONGO_URI` when required by the deployment.
+
+The transaction schema declares a unique partial index on
+`{ recurringId, date }`. Ensure this index exists in each deployed database
+before enabling recurring generation; pre-existing duplicate recurring
+occurrences must be resolved before MongoDB can build the unique index.
+
+For legacy recurring rules, a missing `generatedCount` is treated as zero.
+`repeatMonths` is optional: a missing or `null` value means the rule continues
+indefinitely until manually cancelled. When supplied, it is the total number of
+occurrences, including the first; the rule is deactivated at that limit.

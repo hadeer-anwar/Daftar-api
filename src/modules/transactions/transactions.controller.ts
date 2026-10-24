@@ -64,7 +64,8 @@ export class TransactionController {
           categoryId: '64abc123',
           date: '2026-05-24',
           notes: 'Pizza dinner',
-          repeat: 'one-time',
+          repeat: 'monthly',
+          repeatMonths: 3,
         },
       },
       income: {
@@ -75,6 +76,7 @@ export class TransactionController {
           incomeType: 'salary',
           payDate: '2026-06-01',
           repeat: 'monthly',
+          repeatMonths: 3,
           notes: 'Monthly salary',
         },
       },

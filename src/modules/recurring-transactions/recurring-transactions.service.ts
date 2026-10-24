@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Types } from 'mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
-import { Connection, ClientSession } from 'mongoose';
+import { ClientSession, Connection } from 'mongoose';
 
 import { TransactionRepository } from '../transactions/repositories/transactions.repository';
 import {
@@ -25,6 +25,15 @@ import { calculateNextRunDate } from './utils/calculate-next-run-date.util';
 import { UsersRepository } from '../users/repositories/users.repository';
 import { UpdateRecurringTransactionDto } from './dto/update-recurring-transaction.dto';
 import { RecurringFrequency } from './enums/frequency.enum';
+
+const MAX_GENERATION_ATTEMPTS = 3;
+
+class RecurringGenerationConflictError extends Error {
+  constructor() {
+    super('Recurring transaction state changed during generation');
+    this.name = RecurringGenerationConflictError.name;
+  }
+}
 
 @Injectable()
 export class RecurringTransactionsService {
@@ -86,82 +95,177 @@ export class RecurringTransactionsService {
     rule: RecurringTransactionDocument,
     now: Date,
   ): Promise<Transaction[]> {
-    const created: Transaction[] = [];
+    const session = await this.connection.startSession();
 
-    while (rule.nextRunDate && rule.nextRunDate <= now) {
-      if (
-        rule.repeatMonths !== undefined &&
-        rule.generatedCount >= rule.repeatMonths
-      ) {
-        rule.isActive = false;
-        break;
-      }
-
-      const runDate = new Date(rule.nextRunDate);
-
-      const alreadyExists =
-        await this.transactionRepository.existsRecurringTransaction(
-          rule._id,
-          runDate,
-        );
-
-      if (!alreadyExists) {
+    try {
+      for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt += 1) {
         try {
-          const transaction = await this.transactionRepository.create({
-            userId: rule.userId,
-            amount: rule.amount,
-            transactionType: rule.type,
-            incomeType: rule.incomeType,
-            customIncomeType: rule.customIncomeType,
-            categoryId: rule.categoryId,
-            date: runDate,
-            recurringId: rule._id,
-            notes: rule.notes,
-          });
+          return (
+            (await session.withTransaction(async () => {
+              const created: Transaction[] = [];
+              let current = await this.recurringRepository.findById(
+                rule._id.toString(),
+                session,
+              );
 
-          if (transaction.transactionType === TransactionType.INCOME) {
-            await this.usersRepository.updateBalances(
-              rule.userId.toString(),
-              transaction.amount,
-              0,
-            );
-          } else {
-            await this.usersRepository.updateBalances(
-              rule.userId.toString(),
-              0,
-              transaction.amount,
-            );
-          }
+              if (
+                !current ||
+                current.userId.toString() !== rule.userId.toString() ||
+                !current.isActive ||
+                !current.nextRunDate ||
+                current.nextRunDate > now
+              ) {
+                return created;
+              }
 
-          created.push(transaction);
+              while (
+                current.isActive &&
+                current.nextRunDate &&
+                current.nextRunDate <= now
+              ) {
+                const generatedCount = current.generatedCount ?? 0;
+                const repeatMonths = current.repeatMonths;
+                const expected = {
+                  nextRunDate: new Date(current.nextRunDate),
+                  generatedCount,
+                  repeatMonths,
+                };
+
+                if (
+                  repeatMonths != null &&
+                  (!Number.isInteger(repeatMonths) ||
+                    repeatMonths < 1 ||
+                    repeatMonths > 120)
+                ) {
+                  await this.updateGenerationStateOrThrow(
+                    current._id,
+                    expected,
+                    { generatedCount, isActive: false },
+                    session,
+                  );
+                  break;
+                }
+
+                if (repeatMonths != null && generatedCount >= repeatMonths) {
+                  await this.updateGenerationStateOrThrow(
+                    current._id,
+                    expected,
+                    { isActive: false },
+                    session,
+                  );
+                  break;
+                }
+
+                const runDate = new Date(current.nextRunDate);
+                const alreadyExists =
+                  await this.transactionRepository.existsRecurringTransaction(
+                    current._id,
+                    runDate,
+                    session,
+                  );
+
+                const nextGeneratedCount = generatedCount + 1;
+                const reachedLimit =
+                  repeatMonths != null && nextGeneratedCount >= repeatMonths;
+                const progress: Partial<RecurringTransaction> = {
+                  generatedCount: nextGeneratedCount,
+                  lastGeneratedAt: runDate,
+                  isActive: !reachedLimit,
+                };
+                if (!reachedLimit) {
+                  progress.nextRunDate = calculateNextRunDate(
+                    runDate,
+                    current.frequency,
+                  );
+                }
+
+                // This conditional write serializes workers on the rule. It
+                // is part of this transaction, so failed later writes restore
+                // the previous recurrence state.
+                const advanced = await this.updateGenerationStateOrThrow(
+                  current._id,
+                  expected,
+                  progress,
+                  session,
+                );
+
+                if (!alreadyExists) {
+                  const transaction = await this.transactionRepository.create(
+                    {
+                      userId: current.userId,
+                      amount: current.amount,
+                      transactionType: current.type,
+                      incomeType: current.incomeType,
+                      customIncomeType: current.customIncomeType,
+                      categoryId: current.categoryId,
+                      date: runDate,
+                      recurringId: current._id,
+                      notes: current.notes,
+                    },
+                    session,
+                  );
+
+                  await this.usersRepository.updateBalances(
+                    current.userId.toString(),
+                    transaction.transactionType === TransactionType.INCOME
+                      ? transaction.amount
+                      : 0,
+                    transaction.transactionType === TransactionType.EXPENSE
+                      ? transaction.amount
+                      : 0,
+                    session,
+                  );
+                  created.push(transaction);
+                }
+
+                current = advanced;
+              }
+
+              return created;
+            })) ?? []
+          );
         } catch (err: unknown) {
-          if (this.isDuplicateKeyError(err)) {
-            this.logger.warn(
-              `Duplicate recurring transaction skipped for rule ${rule.id} at ${runDate.toISOString()}`,
-            );
-          } else {
-            throw err;
+          const retryable =
+            err instanceof RecurringGenerationConflictError ||
+            this.isRecurringOccurrenceDuplicate(err);
+          if (retryable && attempt + 1 < MAX_GENERATION_ATTEMPTS) {
+            if (this.isRecurringOccurrenceDuplicate(err)) {
+              this.logger.warn(
+                `Concurrent duplicate recurring transaction retried for rule ${rule.id}`,
+              );
+            }
+            continue;
           }
+          throw err;
         }
       }
 
-      rule.generatedCount += 1;
-      rule.lastGeneratedAt = runDate;
-
-      if (
-        rule.repeatMonths !== undefined &&
-        rule.generatedCount >= rule.repeatMonths
-      ) {
-        rule.isActive = false;
-        break;
-      }
-
-      rule.nextRunDate = calculateNextRunDate(runDate, rule.frequency);
+      return [];
+    } finally {
+      await session.endSession();
     }
+  }
 
-    await this.recurringRepository.save(rule);
-
-    return created;
+  private async updateGenerationStateOrThrow(
+    id: Types.ObjectId,
+    expected: {
+      nextRunDate: Date;
+      generatedCount: number;
+      repeatMonths?: number | null;
+    },
+    data: Partial<RecurringTransaction>,
+    session: ClientSession,
+  ): Promise<RecurringTransactionDocument> {
+    const updated = await this.recurringRepository.updateGenerationState(
+      id,
+      expected,
+      data,
+      session,
+    );
+    if (!updated) {
+      throw new RecurringGenerationConflictError();
+    }
+    return updated;
   }
 
   async findByUserId(userId: string) {
@@ -269,12 +373,24 @@ export class RecurringTransactionsService {
     await this.generateDueTransactions(userId);
   }
 
-  private isDuplicateKeyError(err: unknown): boolean {
+  private isRecurringOccurrenceDuplicate(err: unknown): boolean {
+    if (
+      typeof err !== 'object' ||
+      err === null ||
+      !('code' in err) ||
+      (err as { code?: number }).code !== 11000
+    ) {
+      return false;
+    }
+
+    const duplicate = err as {
+      keyPattern?: Record<string, unknown>;
+      message?: string;
+    };
     return (
-      typeof err === 'object' &&
-      err !== null &&
-      'code' in err &&
-      (err as { code?: number }).code === 11000
+      (duplicate.keyPattern?.recurringId === 1 &&
+        duplicate.keyPattern?.date === 1) ||
+      duplicate.message?.includes('recurringId_1_date_1') === true
     );
   }
 }

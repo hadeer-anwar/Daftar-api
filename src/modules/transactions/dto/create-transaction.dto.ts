@@ -111,14 +111,16 @@ export class CreateTransactionDto {
   })
   repeat?: 'monthly' | 'one-time';
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 3,
-    description: 'Total number of monthly occurrences, including the first.',
+    description:
+      'Total number of occurrences including the first. Omit for indefinite recurrence.',
     minimum: 1,
     maximum: 120,
   })
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(120)
-  repeatMonths?: number;
+  repeatMonths?: number | null;
 }

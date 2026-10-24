@@ -28,7 +28,7 @@ export class Transaction {
   @Prop({ required: true })
   amount!: number;
 
-  @Prop({ required: true, enum: TransactionType })
+  @Prop({ type: String, required: true, enum: TransactionType })
   transactionType!: TransactionType;
 
   @Prop()
@@ -47,7 +47,7 @@ export class Transaction {
   @Prop()
   notes?: string;
 
-  @Prop()
+  @Prop({ type: String, enum: IncomeType })
   incomeType?: IncomeType;
 
   @Prop()

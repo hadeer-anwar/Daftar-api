@@ -22,10 +22,10 @@ export class RecurringTransaction {
   @Prop({ required: true })
   amount!: number;
 
-  @Prop({ required: true, enum: TransactionType })
+  @Prop({ type: String, required: true, enum: TransactionType })
   type!: TransactionType;
 
-  @Prop({ enum: IncomeType })
+  @Prop({ type: String, enum: IncomeType })
   incomeType!: IncomeType;
 
   @Prop()
@@ -34,7 +34,7 @@ export class RecurringTransaction {
   @Prop()
   categoryId?: string;
 
-  @Prop({ required: true, enum: RecurringFrequency })
+  @Prop({ type: String, required: true, enum: RecurringFrequency })
   frequency!: RecurringFrequency;
 
   @Prop({ required: true })
@@ -52,8 +52,8 @@ export class RecurringTransaction {
   @Prop()
   notes?: string;
 
-  @Prop({ type: Number, required: true, min: 1, max: 120 })
-  repeatMonths?: number;
+  @Prop({ type: Number, min: 1, max: 120 })
+  repeatMonths?: number | null;
 
   @Prop({ type: Number, default: 0, min: 0 })
   generatedCount!: number;

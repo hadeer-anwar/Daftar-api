@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 
-import { Model } from 'mongoose';
+import { ClientSession, Model } from 'mongoose';
 
 import { User, UserDocument } from '../schemas/user.schema';
 
@@ -43,8 +43,9 @@ export class UsersRepository {
     userId: string,
     incomeDelta = 0,
     expenseDelta = 0,
+    session?: ClientSession,
   ): Promise<void> {
-    await this.userModel.updateOne(
+    const result = await this.userModel.updateOne(
       { _id: userId },
       {
         $inc: {
@@ -52,6 +53,11 @@ export class UsersRepository {
           totalExpense: expenseDelta,
         },
       },
+      session ? { session } : undefined,
     );
+
+    if (result.matchedCount !== 1) {
+      throw new Error(`Cannot update balances for missing user ${userId}`);
+    }
   }
 }
