@@ -52,6 +52,9 @@ export class RecurringTransaction {
   @Prop()
   notes?: string;
 
+  @Prop()
+  name?: string;
+
   @Prop({ type: Number, min: 1, max: 120 })
   repeatMonths?: number | null;
 

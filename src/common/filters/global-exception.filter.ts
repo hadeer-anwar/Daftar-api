@@ -17,6 +17,13 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     // Mongo duplicate
     if (exception instanceof MongoServerError && exception.code === 11000) {
+      console.error('Duplicate key error:', {
+        message: exception.message,
+        keyPattern: exception.keyPattern,
+        keyValue: exception.keyValue,
+        collection: exception.message,
+      });
+      
       return response.status(409).json({
         statusCode: 409,
         message: 'Resource already exists',

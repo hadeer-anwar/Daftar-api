@@ -81,6 +81,14 @@ export class CreateRecurringTransactionDto {
   @IsDateString({}, { message: 'startDate must be a valid ISO date string' })
   startDate!: string;
 
+  @ApiPropertyOptional({
+    description: 'Name of the transaction',
+    example: 'Monthly subscription',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiPropertyOptional({ example: 'Auto-pay rent', maxLength: 500 })
   @IsOptional()
   @IsString()

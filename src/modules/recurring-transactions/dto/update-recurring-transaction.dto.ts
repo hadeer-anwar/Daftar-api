@@ -41,6 +41,14 @@ export class UpdateRecurringTransactionDto {
   notes?: string;
 
   @ApiPropertyOptional({
+    description: 'Name of the transaction',
+    example: 'Monthly subscription',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({
     description: 'Type of the income',
     example: IncomeType.SALARY,
   })
@@ -75,4 +83,17 @@ export class UpdateRecurringTransactionDto {
   @Min(1)
   @Max(28)
   dayOfMonth?: number;
+
+  @ApiPropertyOptional({
+    example: 3,
+    description:
+      'Total number of occurrences including the first. Omit for indefinite recurrence.',
+    minimum: 1,
+    maximum: 120,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(120)
+  repeatMonths?: number | null;
 }

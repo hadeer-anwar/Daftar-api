@@ -57,6 +57,14 @@ export class CreateTransactionDto {
   @IsString()
   notes?: string;
 
+  @ApiPropertyOptional({
+    example: 'Pizza dinner',
+    description: 'Optional name for any transaction',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   // ─── Income-only fields ─────────────────────────────────────────────────────
 
   @ApiProperty({

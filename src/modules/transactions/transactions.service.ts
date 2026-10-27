@@ -60,6 +60,7 @@ export class TransactionService {
         frequency: RecurringFrequency.MONTHLY,
         startDate: effectiveDate.toISOString(),
         notes: dto.notes,
+        name: dto.name ?? undefined,
         categoryId: dto.categoryId,
         repeatMonths: dto.repeatMonths!,
       });
@@ -79,6 +80,7 @@ export class TransactionService {
       transactionType: dto.transactionType,
       categoryId: dto.categoryId,
       notes: dto.notes,
+      name: dto.name ?? undefined,
       incomeType: dto.incomeType,
       customIncomeType:
         dto.incomeType === IncomeType.OTHER ? dto.customIncomeType : undefined,
@@ -139,6 +141,7 @@ export class TransactionService {
           : undefined,
       notes: dto.notes ?? transaction.notes,
       date: transaction.date, // will be overridden below if dto has date/payDate
+      name: dto.name ?? undefined,
     };
 
     const isIncome = effective.transactionType === TransactionType.INCOME;

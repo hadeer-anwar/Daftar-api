@@ -47,6 +47,9 @@ export class Transaction {
   @Prop()
   notes?: string;
 
+  @Prop()
+  name?: string;
+
   @Prop({ type: String, enum: IncomeType })
   incomeType?: IncomeType;
 

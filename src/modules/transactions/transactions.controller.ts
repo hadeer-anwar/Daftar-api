@@ -66,6 +66,7 @@ export class TransactionController {
           notes: 'Pizza dinner',
           repeat: 'monthly',
           repeatMonths: 3,
+          name: 'Pizza dinner',
         },
       },
       income: {
@@ -78,6 +79,7 @@ export class TransactionController {
           repeat: 'monthly',
           repeatMonths: 3,
           notes: 'Monthly salary',
+          name: 'Monthly salary',
         },
       },
       otherIncome: {
@@ -90,6 +92,7 @@ export class TransactionController {
           payDate: '2026-06-01',
           repeat: 'one-time',
           notes: 'Birthday gift',
+          name: 'Birthday gift',
         },
       },
     },

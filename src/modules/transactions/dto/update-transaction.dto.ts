@@ -71,4 +71,12 @@ export class UpdateTransactionDto {
   @IsOptional()
   @IsEnum(['monthly', 'one-time'])
   repeat?: 'monthly' | 'one-time';
+
+  @ApiPropertyOptional({
+    description: 'Name of the transaction',
+    example: 'Monthly subscription',
+  })
+  @IsOptional()
+  @IsString()
+  name?: string;
 }
