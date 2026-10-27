@@ -23,7 +23,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         keyValue: exception.keyValue,
         collection: exception.message,
       });
-      
+
       return response.status(409).json({
         statusCode: 409,
         message: 'Resource already exists',
