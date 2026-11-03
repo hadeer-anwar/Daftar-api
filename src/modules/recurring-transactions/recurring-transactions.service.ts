@@ -62,6 +62,7 @@ export class RecurringTransactionsService {
       nextRunDate: startDate,
       isActive: true,
       notes: dto.notes,
+      name: dto.name,
       categoryId: dto.categoryId,
       repeatMonths: dto.repeatMonths,
       generatedCount: 0,
@@ -202,6 +203,7 @@ export class RecurringTransactionsService {
                       date: runDate,
                       recurringId: current._id,
                       notes: current.notes,
+                      name: current.name,
                     },
                     session,
                   );
@@ -300,6 +302,7 @@ export class RecurringTransactionsService {
       amount,
       categoryId,
       notes,
+      name,
       incomeType,
       customIncomeType,
     } = dto;
@@ -309,6 +312,7 @@ export class RecurringTransactionsService {
     if (amount !== undefined) patch.amount = amount;
     if (categoryId !== undefined) patch.categoryId = categoryId;
     if (notes !== undefined) patch.notes = notes;
+    if (name !== undefined) patch.name = name;
     if (incomeType !== undefined) {
       patch.incomeType = incomeType;
       if (incomeType !== IncomeType.OTHER) {

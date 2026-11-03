@@ -42,6 +42,7 @@ describe('RecurringTransactionsService generation', () => {
       repeatMonths: 1,
       generatedCount: 0,
       notes: 'scheduled',
+      name: 'Monthly groceries',
       ...overrides,
     }) as RecurringTransactionDocument;
 
@@ -97,6 +98,7 @@ describe('RecurringTransactionsService generation', () => {
         Promise.resolve([cloneRule(persistedRule)]),
       ),
       findById: jest.fn(() => Promise.resolve(cloneRule(persistedRule))),
+      update: jest.fn().mockResolvedValue(null),
       updateGenerationState: jest.fn(
         (
           _id: Types.ObjectId,
@@ -188,6 +190,7 @@ describe('RecurringTransactionsService generation', () => {
         transactionType: TransactionType.EXPENSE,
         recurringId: ruleId,
         date: firstDate,
+        name: 'Monthly groceries',
       }),
       harness.session,
     );
@@ -477,6 +480,73 @@ describe('RecurringTransactionsService generation', () => {
       25,
     );
     expect(recurringService.create).not.toHaveBeenCalled();
+  });
+
+  it('creates a recurring rule with its name', async () => {
+    const rule = { _id: ruleId };
+    const recurringRepository = {
+      create: jest.fn().mockResolvedValue(rule),
+    };
+    const service = new RecurringTransactionsService(
+      recurringRepository as unknown as RecurringTransactionsRepository,
+      {} as TransactionRepository,
+      {} as UsersRepository,
+      {} as never,
+    );
+
+    await service.create(userId.toString(), {
+      amount: 25,
+      type: TransactionType.EXPENSE,
+      categoryId: 'groceries',
+      frequency: RecurringFrequency.MONTHLY,
+      startDate: firstDate.toISOString(),
+      name: 'Monthly groceries',
+    });
+
+    expect(recurringRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Monthly groceries' }),
+    );
+  });
+
+  it('updates a recurring rule name', async () => {
+    const harness = setup();
+
+    await harness.service.update(userId.toString(), ruleId.toString(), {
+      name: 'Updated groceries',
+    });
+
+    expect(harness.recurringRepository.update).toHaveBeenCalledWith(
+      ruleId.toString(),
+      { name: 'Updated groceries' },
+    );
+  });
+
+  it('preserves a transaction name when updating other fields', async () => {
+    const transaction = {
+      _id: ruleId,
+      amount: 25,
+      transactionType: TransactionType.EXPENSE,
+      date: firstDate,
+      name: 'Monthly groceries',
+    } as Transaction;
+    const transactionRepository = {
+      findByIdAndUser: jest.fn().mockResolvedValue(transaction),
+      updateById: jest.fn().mockResolvedValue(transaction),
+    };
+    const usersRepository = { updateBalances: jest.fn() };
+    const service = new TransactionService(
+      transactionRepository as unknown as TransactionRepository,
+      usersRepository as unknown as UsersRepository,
+      {} as never,
+      {} as never,
+    );
+
+    await service.update(userId.toString(), ruleId.toString(), { amount: 30 });
+
+    expect(transactionRepository.updateById).toHaveBeenCalledWith(
+      ruleId.toString(),
+      expect.objectContaining({ amount: 30, name: 'Monthly groceries' }),
+    );
   });
 
   it('validates repeatMonths as optional but enforces the range when supplied', async () => {

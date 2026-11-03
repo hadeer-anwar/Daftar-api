@@ -141,7 +141,7 @@ export class TransactionService {
           : undefined,
       notes: dto.notes ?? transaction.notes,
       date: transaction.date, // will be overridden below if dto has date/payDate
-      name: dto.name ?? undefined,
+      name: dto.name ?? transaction.name,
     };
 
     const isIncome = effective.transactionType === TransactionType.INCOME;
